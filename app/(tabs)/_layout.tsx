@@ -1,77 +1,72 @@
 import React from 'react';
-import { FontAwesome } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
-
+import { Home, CheckSquare, Calendar, Users } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 
-function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['name']; color: string }) {
-  return <FontAwesome size={22} style={{ marginBottom: -3 }} {...props} />;
-}
-
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: theme.tabIconSelected,
-        tabBarInactiveTintColor: theme.tabIconDefault,
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.muted,
         tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.borderLight,
+          backgroundColor: '#111111',
+          borderTopColor: Colors.border,
           borderTopWidth: 1,
-          paddingBottom: 4,
           height: 56,
+          paddingBottom: 4,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          marginTop: -2,
         },
         headerStyle: {
-          backgroundColor: theme.surface,
+          backgroundColor: Colors.background,
           elevation: 0,
           shadowOpacity: 0,
-          borderBottomWidth: 1,
-          borderBottomColor: theme.borderLight,
+          borderBottomWidth: 0,
         },
-        headerTintColor: theme.text,
+        headerTintColor: Colors.foreground,
         headerTitleStyle: {
           fontWeight: '700',
           fontSize: 18,
         },
+        headerShown: false,
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-          headerTitle: 'Hive',
+          tabBarIcon: ({ color, focused }) => (
+            <Home size={20} color={color} strokeWidth={focused ? 2.5 : 1.5} />
+          ),
         }}
       />
       <Tabs.Screen
         name="todos"
         options={{
           title: 'Todos',
-          tabBarIcon: ({ color }) => <TabBarIcon name="check-square-o" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <CheckSquare size={20} color={color} strokeWidth={focused ? 2.5 : 1.5} />
+          ),
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
-          title: 'Calendar',
-          tabBarIcon: ({ color }) => <TabBarIcon name="calendar" color={color} />,
+          title: 'Events',
+          tabBarIcon: ({ color, focused }) => (
+            <Calendar size={20} color={color} strokeWidth={focused ? 2.5 : 1.5} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="leaderboard"
+        name="family"
         options={{
-          title: 'Board',
-          tabBarIcon: ({ color }) => <TabBarIcon name="trophy" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <TabBarIcon name="user" color={color} />,
+          title: 'Family',
+          tabBarIcon: ({ color, focused }) => (
+            <Users size={20} color={color} strokeWidth={focused ? 2.5 : 1.5} />
+          ),
         }}
       />
     </Tabs>

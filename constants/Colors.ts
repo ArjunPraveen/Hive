@@ -1,81 +1,35 @@
-// Hive color palette — warm amber/honey theme
-const amber = {
-  50: '#FFFBEB',
-  100: '#FEF3C7',
-  200: '#FDE68A',
-  300: '#FCD34D',
-  400: '#FBBF24',
-  500: '#F59E0B',
-  600: '#D97706',
-  700: '#B45309',
-  800: '#92400E',
-  900: '#78350F',
-};
-
+// Hive dark-first theme — matching Figma revamped design
 export const Colors = {
-  amber,
-  light: {
-    text: '#1C1917',
-    textSecondary: '#78716C',
-    textTertiary: '#A8A29E',
-    background: '#F5F3EF',
-    surface: '#FFFFFF',
-    surfaceElevated: '#FFFFFF',
-    primary: amber[500],
-    primaryDark: amber[600],
-    primaryLight: amber[100],
-    tint: amber[500],
-    tabIconDefault: '#A8A29E',
-    tabIconSelected: amber[600],
-    border: '#E7E5E4',
-    borderLight: '#F5F5F4',
-    success: '#22C55E',
-    danger: '#EF4444',
-    warning: amber[400],
-    info: '#3B82F6',
-    shadow: 'rgba(28, 25, 23, 0.08)',
-    // Priority colors
-    p0: '#EF4444',
-    p1: '#F97316',
-    p2: '#3B82F6',
-    p3: '#A8A29E',
-    // Category pastels
-    health: '#DCFCE7',
-    learning: '#DBEAFE',
-    chores: '#FEF3C7',
-    personal: '#F3E8FF',
-  },
-  dark: {
-    text: '#FAFAF9',
-    textSecondary: '#A8A29E',
-    textTertiary: '#78716C',
-    background: '#1C1917',
-    surface: '#292524',
-    surfaceElevated: '#44403C',
-    primary: amber[400],
-    primaryDark: amber[500],
-    primaryLight: amber[900],
-    tint: amber[400],
-    tabIconDefault: '#78716C',
-    tabIconSelected: amber[400],
-    border: '#44403C',
-    borderLight: '#292524',
-    success: '#4ADE80',
-    danger: '#F87171',
-    warning: amber[300],
-    info: '#60A5FA',
-    shadow: 'rgba(0, 0, 0, 0.3)',
-    p0: '#F87171',
-    p1: '#FB923C',
-    p2: '#60A5FA',
-    p3: '#78716C',
-    health: '#14532D',
-    learning: '#1E3A5F',
-    chores: '#78350F',
-    personal: '#3B0764',
-  },
-};
+  // Core palette
+  background: '#1a1a1a',
+  surface: '#2a2a2a',
+  surfaceLight: '#333333',
+  surfaceHover: '#333333',
+  primary: '#f5a623',
+  primaryDark: '#c47a1a',
+  primaryHover: '#e09520',
+  foreground: '#f5f5f5',
+  muted: '#999999',
+  mutedLight: '#666666',
+  border: 'rgba(255, 255, 255, 0.1)',
+  borderSolid: '#3a3a3a',
+  destructive: '#d4183d',
+  success: '#25D366',
 
-export type ThemeColors = typeof Colors.light;
+  // Member colors
+  memberColors: ['#e74c3c', '#3498db', '#9b59b6', '#2ecc71', '#f39c12', '#1abc9c'],
+
+  // Priority
+  p0: '#e74c3c',
+  p1: '#f39c12',
+  p2: '#3498db',
+  p3: '#999999',
+
+  // Transparent variants
+  primaryBg: 'rgba(245, 166, 35, 0.15)',
+  primaryBorder: 'rgba(245, 166, 35, 0.2)',
+  successBg: 'rgba(37, 211, 102, 0.1)',
+  destructiveBg: 'rgba(212, 24, 61, 0.15)',
+};
 
 export default Colors;

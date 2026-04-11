@@ -1,22 +1,16 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { FontAwesome } from '@expo/vector-icons';
+import { Mail, Lock } from 'lucide-react-native';
 
-import { useThemeColors } from '@/hooks/useThemeColors';
+import Colors from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
+import { HexIcon } from '@/components/ui/HexIcon';
 
 export default function LoginScreen() {
-  const colors = useThemeColors();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,21 +19,13 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (loading) return;
-    if (!email.trim() || !password) {
-      setError('Please fill in all fields');
-      return;
-    }
+    if (!email.trim() || !password) { setError('Please fill in all fields'); return; }
     setError('');
     setLoading(true);
     try {
       const result = await signIn(email.trim(), password);
       setLoading(false);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      // signIn loaded profile — navigate based on result
-      // The root layout effect will also handle this, but explicit nav is faster
+      if (result.error) { setError(result.error); return; }
       if (result.needsFamily) {
         router.replace('/(auth)/join-family');
       } else {
@@ -52,90 +38,73 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
-        <View style={styles.logoSection}>
-          <View style={[styles.logoCircle, { backgroundColor: colors.primaryLight }]}>
-            <FontAwesome name="home" size={36} color={colors.primary} />
-          </View>
-          <Text style={[styles.appName, { color: colors.text }]}>Hive</Text>
-          <Text style={[styles.tagline, { color: colors.textSecondary }]}>
-            Your family, in sync
-          </Text>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.container}>
+      <View style={s.content}>
+        <View style={s.logoSection}>
+          <HexIcon size={80} bg={Colors.primaryDark}>
+            <Text style={{ fontSize: 28 }}>🐝</Text>
+          </HexIcon>
+          <Text style={s.appName}>Hive</Text>
+          <Text style={s.tagline}>Your family, in sync</Text>
         </View>
 
-        <View style={styles.form}>
-          <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <FontAwesome name="envelope-o" size={16} color={colors.textTertiary} />
+        <View style={s.form}>
+          <View style={s.inputRow}>
+            <Mail size={18} color={Colors.muted} />
             <TextInput
-              style={[styles.input, { color: colors.text }]}
+              style={s.input}
               placeholder="Email"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={Colors.muted}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              autoComplete="email"
             />
           </View>
 
-          <View style={[styles.inputWrapper, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <FontAwesome name="lock" size={18} color={colors.textTertiary} />
+          <View style={s.inputRow}>
+            <Lock size={18} color={Colors.muted} />
             <TextInput
-              style={[styles.input, { color: colors.text }]}
+              style={s.input}
               placeholder="Password"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={Colors.muted}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              autoComplete="password"
             />
           </View>
 
-          {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
+          {error ? <Text style={s.error}>{error}</Text> : null}
 
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.primary }]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}>
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
-            )}
+          <TouchableOpacity style={s.button} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+            {loading ? <ActivityIndicator color={Colors.background} /> : <Text style={s.buttonText}>Sign In</Text>}
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          onPress={() => router.push('/(auth)/signup')}
-          style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-            Don't have an account?{' '}
-          </Text>
-          <Text style={[styles.footerLink, { color: colors.primary }]}>Sign Up</Text>
-        </TouchableOpacity>
+        <View style={s.footer}>
+          <Text style={s.footerText}>Don't have an account? </Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
+            <Text style={s.footerLink}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1, justifyContent: 'center', padding: 24 },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, maxWidth: 400, alignSelf: 'center', width: '100%' },
   logoSection: { alignItems: 'center', marginBottom: 40 },
-  logoCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  appName: { fontSize: 32, fontWeight: '800' },
-  tagline: { fontSize: 15, marginTop: 4 },
-  form: { gap: 14 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, height: 52, gap: 12 },
-  input: { flex: 1, fontSize: 15 },
-  error: { fontSize: 13, textAlign: 'center' },
-  button: { height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
-  footerText: { fontSize: 14 },
-  footerLink: { fontSize: 14, fontWeight: '700' },
+  appName: { fontSize: 28, fontWeight: '700', color: Colors.foreground, marginTop: 16 },
+  tagline: { fontSize: 14, color: Colors.muted, marginTop: 4 },
+  form: { gap: 16 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 16, height: 48 },
+  input: { flex: 1, fontSize: 15, color: Colors.foreground },
+  error: { fontSize: 13, color: Colors.destructive, textAlign: 'center' },
+  button: { backgroundColor: Colors.primary, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { color: Colors.background, fontSize: 16, fontWeight: '600' },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
+  footerText: { fontSize: 14, color: Colors.muted },
+  footerLink: { fontSize: 14, fontWeight: '700', color: Colors.primary },
 });

@@ -1,350 +1,149 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import { CheckSquare, Calendar, Flame, BookOpen, Bell, ChevronRight, Trophy } from 'lucide-react-native';
 
-import { useThemeColors } from '@/hooks/useThemeColors';
+import Colors from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Avatar } from '@/components/ui/Avatar';
 
-interface WordOfDay {
-  word: string;
-  phonetic?: string;
-  definition: string;
-  example?: string;
-  partOfSpeech?: string;
-}
+const WORDS = [
+  { word: 'Serendipity', meaning: 'The occurrence of events by chance in a happy way', language: 'English' },
+  { word: 'Ikigai', meaning: 'A reason for being; the thing that gets you up in the morning', language: 'Japanese' },
+  { word: 'Hygge', meaning: 'A quality of coziness and comfortable conviviality', language: 'Danish' },
+  { word: 'Ubuntu', meaning: 'I am because we are — humanity towards others', language: 'Zulu' },
+  { word: 'Gezellig', meaning: 'Cozy, warm atmosphere shared with loved ones', language: 'Dutch' },
+];
 
 export default function DashboardScreen() {
-  const colors = useThemeColors();
   const { user, family, familyMembers } = useAuth();
-  const { todos, events, leaderboard: fullLeaderboard } = useData();
-  const [wordOfDay, setWordOfDay] = useState<WordOfDay | null>(null);
-  const [wordLoading, setWordLoading] = useState(true);
-
-  const myTodos = todos.filter(
-    (t) => t.assigned_to === user?.id && t.status !== 'done'
-  );
-  const upcomingEvents = events
-    .filter((e) => new Date(e.event_date) > new Date())
-    .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
-    .slice(0, 3);
-  const leaderboard = fullLeaderboard.slice(0, 3);
-
-  const totalTodos = todos.filter((t) => t.status !== 'done').length;
-  const doneTodos = todos.filter((t) => t.status === 'done').length;
+  const { todos, events, leaderboard } = useData();
+  const [wordIndex, setWordIndex] = useState(0);
 
   useEffect(() => {
-    fetchWordOfDay();
+    setWordIndex(new Date().getDate() % WORDS.length);
   }, []);
 
-  async function fetchWordOfDay() {
-    try {
-      // Use a curated set of interesting words as fallback
-      const words = [
-        'serendipity', 'ephemeral', 'luminous', 'resilient', 'quintessential',
-        'mellifluous', 'eloquent', 'vivacious', 'ineffable', 'petrichor',
-      ];
-      const today = new Date();
-      const dayIndex = today.getDate() % words.length;
-      const word = words[dayIndex];
-
-      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
-      if (res.ok) {
-        const data = await res.json();
-        const entry = data[0];
-        const meaning = entry.meanings?.[0];
-        const def = meaning?.definitions?.[0];
-        setWordOfDay({
-          word: entry.word,
-          phonetic: entry.phonetic,
-          definition: def?.definition || 'No definition available',
-          example: def?.example,
-          partOfSpeech: meaning?.partOfSpeech,
-        });
-      }
-    } catch {
-      setWordOfDay({
-        word: 'serendipity',
-        definition: 'The occurrence of events by chance in a happy way.',
-        example: 'A fortunate stroke of serendipity brought them together.',
-        partOfSpeech: 'noun',
-      });
-    } finally {
-      setWordLoading(false);
-    }
-  }
-
-  const priorityColor = (p: number) => {
-    const map = [colors.p0, colors.p1, colors.p2, colors.p3];
-    return map[p] || colors.p3;
-  };
-
-  const formatDate = (date: string) => {
-    const d = new Date(date);
-    const now = new Date();
-    const diffMs = d.getTime() - now.getTime();
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffHours < 0) return 'Overdue';
-    if (diffHours < 24) return `${diffHours}h left`;
-    if (diffDays < 7) return `${diffDays}d left`;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const formatEventDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  const word = WORDS[wordIndex];
+  const myTodos = todos.filter((t) => t.assigned_to === user?.id && t.status !== 'done');
+  const upcomingEvents = events.filter((e) => new Date(e.event_date) >= new Date());
+  const topMember = leaderboard[0];
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}>
-      {/* Greeting */}
-      <View style={styles.greeting}>
+    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      {/* Header */}
+      <View style={s.header}>
         <View>
-          <Text style={[styles.greetingText, { color: colors.textSecondary }]}>
-            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'},
-          </Text>
-          <Text style={[styles.userName, { color: colors.text }]}>{user?.display_name}</Text>
+          <Text style={s.greeting}>Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}</Text>
+          <Text style={s.familyName}>{family?.name || 'Hive'} 🐝</Text>
         </View>
-        <View style={styles.familyAvatars}>
-          {familyMembers.slice(0, 4).map((m) => (
-            <Avatar key={m.id} name={m.display_name} size={32} style={{ marginLeft: -8 }} />
-          ))}
-        </View>
+        <TouchableOpacity style={s.bellBtn}>
+          <Bell size={18} color={Colors.foreground} />
+          <View style={s.bellDot} />
+        </TouchableOpacity>
       </View>
 
-      {/* Stats Row */}
-      <View style={styles.statsRow}>
-        <Card style={[styles.statCard, { flex: 1, marginRight: 8 }]}>
-          <Text style={[styles.statNumber, { color: colors.primary }]}>{myTodos.length}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>My Tasks</Text>
-        </Card>
-        <Card style={[styles.statCard, { flex: 1, marginHorizontal: 4 }]}>
-          <Text style={[styles.statNumber, { color: colors.success }]}>{doneTodos}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Done</Text>
-        </Card>
-        <Card style={[styles.statCard, { flex: 1, marginLeft: 8 }]}>
-          <Text style={[styles.statNumber, { color: colors.info }]}>{upcomingEvents.length}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Events</Text>
-        </Card>
+      {/* Family members row */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.membersScroll} contentContainerStyle={s.membersRow}>
+        {familyMembers.map((m, i) => {
+          const color = Colors.memberColors[i % Colors.memberColors.length];
+          return (
+            <View key={m.id} style={s.memberItem}>
+              <View style={[s.memberAvatar, { backgroundColor: color + '25', borderColor: color }]}>
+                <Text style={{ fontSize: 16 }}>{m.role_label === 'Mom' ? '👩' : m.role_label === 'Dad' ? '👨' : m.role_label === 'Son' ? '🧑' : m.role_label === 'Daughter' ? '👧' : '😊'}</Text>
+              </View>
+              <Text style={s.memberName}>{m.display_name.split(' ')[0]}</Text>
+            </View>
+          );
+        })}
+        <View style={s.memberItem}>
+          <View style={s.inviteAvatar}><Text style={s.invitePlus}>+</Text></View>
+          <Text style={s.memberName}>Invite</Text>
+        </View>
+      </ScrollView>
+
+      {/* Stats cards */}
+      <View style={s.statsRow}>
+        <TouchableOpacity style={s.statCard} onPress={() => router.push('/(tabs)/todos')} activeOpacity={0.8}>
+          <CheckSquare size={16} color={Colors.primary} />
+          <Text style={s.statNumber}>{myTodos.length}</Text>
+          <Text style={s.statLabel}>Tasks left</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.statCard} onPress={() => router.push('/(tabs)/calendar')} activeOpacity={0.8}>
+          <Calendar size={16} color="#e74c3c" />
+          <Text style={s.statNumber}>{upcomingEvents.length}</Text>
+          <Text style={s.statLabel}>This week</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.statCard} onPress={() => router.push('/(tabs)/family')} activeOpacity={0.8}>
+          <Flame size={16} color={Colors.primary} />
+          <Text style={s.statNumber}>{topMember?.todosCompleted || 0}</Text>
+          <Text style={s.statLabel}>Top score</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Word of the Day */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Word of the Day</Text>
-        <Card>
-          {wordLoading ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : wordOfDay ? (
-            <View>
-              <View style={styles.wordHeader}>
-                <Text style={[styles.word, { color: colors.primary }]}>{wordOfDay.word}</Text>
-                {wordOfDay.partOfSpeech && (
-                  <Badge label={wordOfDay.partOfSpeech} />
-                )}
-              </View>
-              {wordOfDay.phonetic && (
-                <Text style={[styles.phonetic, { color: colors.textTertiary }]}>
-                  {wordOfDay.phonetic}
-                </Text>
-              )}
-              <Text style={[styles.definition, { color: colors.text }]}>
-                {wordOfDay.definition}
-              </Text>
-              {wordOfDay.example && (
-                <View style={[styles.exampleBox, { backgroundColor: colors.primaryLight }]}>
-                  <Text style={[styles.exampleText, { color: colors.primaryDark }]}>
-                    "{wordOfDay.example}"
-                  </Text>
-                </View>
-              )}
+      <View style={s.wordCard}>
+        <View style={s.wordHeader}>
+          <BookOpen size={14} color={Colors.primary} />
+          <Text style={s.wordLabel}>WORD OF THE DAY</Text>
+        </View>
+        <Text style={s.wordText}>{word.word}</Text>
+        <Text style={s.wordLang}>{word.language}</Text>
+        <Text style={s.wordMeaning}>{word.meaning}</Text>
+      </View>
+
+      {/* Quick nav */}
+      <View style={s.quickNav}>
+        {[
+          { label: "Today's Todos", sub: `${myTodos.length} remaining`, icon: CheckSquare, color: Colors.primary, path: '/(tabs)/todos' },
+          { label: 'Upcoming Events', sub: `${upcomingEvents.length} events`, icon: Calendar, color: '#e74c3c', path: '/(tabs)/calendar' },
+          { label: 'Leaderboard', sub: topMember ? `${topMember.name} is leading!` : 'No data yet', icon: Trophy, color: '#9b59b6', path: '/(tabs)/family' },
+        ].map((item) => (
+          <TouchableOpacity key={item.label} style={s.navCard} onPress={() => router.push(item.path as any)} activeOpacity={0.8}>
+            <View style={[s.navIcon, { backgroundColor: item.color + '20' }]}>
+              <item.icon size={18} color={item.color} />
             </View>
-          ) : null}
-        </Card>
-      </View>
-
-      {/* My Todos */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>My Tasks</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/todos')}>
-            <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
-          </TouchableOpacity>
-        </View>
-        {myTodos.length === 0 ? (
-          <Card>
-            <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
-              All caught up! No pending tasks.
-            </Text>
-          </Card>
-        ) : (
-          myTodos.slice(0, 3).map((todo) => (
-            <Card key={todo.id} style={styles.todoCard}>
-              <View style={styles.todoRow}>
-                <View style={[styles.priorityDot, { backgroundColor: priorityColor(todo.priority) }]} />
-                <View style={styles.todoContent}>
-                  <Text style={[styles.todoTitle, { color: colors.text }]}>{todo.title}</Text>
-                  {todo.deadline && (
-                    <Text
-                      style={[
-                        styles.todoDeadline,
-                        {
-                          color:
-                            new Date(todo.deadline) < new Date()
-                              ? colors.danger
-                              : colors.textSecondary,
-                        },
-                      ]}>
-                      {formatDate(todo.deadline)}
-                    </Text>
-                  )}
-                </View>
-                <Badge
-                  label={todo.status === 'in_progress' ? 'In Progress' : 'Open'}
-                  color={todo.status === 'in_progress' ? colors.warning + '30' : colors.info + '20'}
-                  textColor={todo.status === 'in_progress' ? colors.warning : colors.info}
-                />
-              </View>
-            </Card>
-          ))
-        )}
-      </View>
-
-      {/* Upcoming Events */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Events</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/calendar')}>
-            <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
-          </TouchableOpacity>
-        </View>
-        {upcomingEvents.map((event) => {
-          const creator = familyMembers.find((m) => m.id === event.created_by);
-          return (
-            <Card key={event.id} style={styles.eventCard}>
-              <View style={styles.eventRow}>
-                <View style={[styles.eventDateBox, { backgroundColor: colors.primaryLight }]}>
-                  <Text style={[styles.eventDateText, { color: colors.primaryDark }]}>
-                    {new Date(event.event_date).getDate()}
-                  </Text>
-                  <Text style={[styles.eventMonthText, { color: colors.primaryDark }]}>
-                    {new Date(event.event_date).toLocaleDateString('en-US', { month: 'short' })}
-                  </Text>
-                </View>
-                <View style={styles.eventContent}>
-                  <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
-                  <Text style={[styles.eventMeta, { color: colors.textSecondary }]}>
-                    {formatEventDate(event.event_date)}
-                    {event.location ? ` \u00b7 ${event.location}` : ''}
-                  </Text>
-                </View>
-                {creator && <Avatar name={creator.display_name} size={28} />}
-              </View>
-            </Card>
-          );
-        })}
-      </View>
-
-      {/* Mini Leaderboard */}
-      <View style={[styles.section, { marginBottom: 32 }]}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Leaderboard</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/leaderboard')}>
-            <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
-          </TouchableOpacity>
-        </View>
-        <Card>
-          {leaderboard.map((entry, index) => (
-            <View
-              key={entry.userId}
-              style={[
-                styles.leaderRow,
-                index < leaderboard.length - 1 && {
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.borderLight,
-                },
-              ]}>
-              <Text style={[styles.leaderRank, { color: index === 0 ? colors.primary : colors.textTertiary }]}>
-                {index === 0 ? '\ud83e\uddc1' : index === 1 ? '\ud83e\udd48' : '\ud83e\udd49'}
-              </Text>
-              <Avatar name={entry.name} size={32} />
-              <View style={styles.leaderInfo}>
-                <Text style={[styles.leaderName, { color: colors.text }]}>{entry.name}</Text>
-                <Text style={[styles.leaderMeta, { color: colors.textSecondary }]}>
-                  {entry.todosCompleted} completed
-                </Text>
-              </View>
-              <Text style={[styles.leaderScore, { color: colors.primary }]}>{entry.score} pts</Text>
+            <View style={s.navText}>
+              <Text style={s.navLabel}>{item.label}</Text>
+              <Text style={s.navSub}>{item.sub}</Text>
             </View>
-          ))}
-        </Card>
+            <ChevronRight size={16} color={Colors.muted} />
+          </TouchableOpacity>
+        ))}
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 16, paddingTop: 8 },
-  greeting: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  greetingText: { fontSize: 14, fontWeight: '500' },
-  userName: { fontSize: 26, fontWeight: '800', marginTop: 2 },
-  familyAvatars: { flexDirection: 'row', paddingLeft: 8 },
-  statsRow: { flexDirection: 'row', marginBottom: 24 },
-  statCard: { alignItems: 'center', paddingVertical: 14 },
-  statNumber: { fontSize: 28, fontWeight: '800' },
-  statLabel: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  section: { marginBottom: 24 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '700' },
-  seeAll: { fontSize: 14, fontWeight: '600' },
-  // Word of the Day
-  wordHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  word: { fontSize: 22, fontWeight: '800' },
-  phonetic: { fontSize: 13, marginTop: 2, fontStyle: 'italic' },
-  definition: { fontSize: 15, lineHeight: 22, marginTop: 8 },
-  exampleBox: { marginTop: 10, padding: 12, borderRadius: 10 },
-  exampleText: { fontSize: 14, fontStyle: 'italic', lineHeight: 20 },
-  // Todos
-  todoCard: { marginBottom: 8 },
-  todoRow: { flexDirection: 'row', alignItems: 'center' },
-  priorityDot: { width: 8, height: 8, borderRadius: 4, marginRight: 12 },
-  todoContent: { flex: 1, marginRight: 8 },
-  todoTitle: { fontSize: 15, fontWeight: '600' },
-  todoDeadline: { fontSize: 12, marginTop: 2 },
-  emptyText: { textAlign: 'center', fontSize: 14 },
-  // Events
-  eventCard: { marginBottom: 8 },
-  eventRow: { flexDirection: 'row', alignItems: 'center' },
-  eventDateBox: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  eventDateText: { fontSize: 18, fontWeight: '800' },
-  eventMonthText: { fontSize: 10, fontWeight: '600', marginTop: -2 },
-  eventContent: { flex: 1 },
-  eventTitle: { fontSize: 15, fontWeight: '600' },
-  eventMeta: { fontSize: 12, marginTop: 2 },
-  // Leaderboard
-  leaderRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  leaderRank: { fontSize: 20, width: 32, textAlign: 'center' },
-  leaderInfo: { flex: 1, marginLeft: 10 },
-  leaderName: { fontSize: 15, fontWeight: '600' },
-  leaderMeta: { fontSize: 12, marginTop: 1 },
-  leaderScore: { fontSize: 16, fontWeight: '700' },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { paddingBottom: 80, maxWidth: 500, alignSelf: 'center', width: '100%' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 48, paddingBottom: 12 },
+  greeting: { fontSize: 12, color: Colors.muted },
+  familyName: { fontSize: 18, fontWeight: '700', color: Colors.foreground, marginTop: 2 },
+  bellBtn: { padding: 8, backgroundColor: Colors.surface, borderRadius: 20 },
+  bellDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  membersScroll: { flexGrow: 0, maxHeight: 72, marginTop: 8 },
+  membersRow: { paddingHorizontal: 16, gap: 12, paddingBottom: 4, alignItems: 'center' },
+  memberItem: { alignItems: 'center', gap: 4 },
+  memberAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  memberName: { fontSize: 10, color: Colors.muted },
+  inviteAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderStyle: 'dashed', borderColor: Colors.mutedLight, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface },
+  invitePlus: { fontSize: 16, color: Colors.muted },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginTop: 16 },
+  statCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.border },
+  statNumber: { fontSize: 22, fontWeight: '700', color: Colors.foreground, marginTop: 4 },
+  statLabel: { fontSize: 10, color: Colors.muted },
+  wordCard: { marginHorizontal: 16, marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: '#2a2218', borderWidth: 1, borderColor: Colors.primaryBorder },
+  wordHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  wordLabel: { fontSize: 10, color: Colors.primary, letterSpacing: 2, fontWeight: '600' },
+  wordText: { fontSize: 20, fontWeight: '700', color: Colors.foreground },
+  wordLang: { fontSize: 10, color: Colors.primaryDark, marginTop: 2 },
+  wordMeaning: { fontSize: 14, color: Colors.muted, marginTop: 4, lineHeight: 20 },
+  quickNav: { paddingHorizontal: 16, marginTop: 16, gap: 8 },
+  navCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },
+  navIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  navText: { flex: 1 },
+  navLabel: { fontSize: 14, fontWeight: '600', color: Colors.foreground },
+  navSub: { fontSize: 11, color: Colors.muted, marginTop: 1 },
 });

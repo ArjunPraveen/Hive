@@ -1,10 +1,8 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
-import { useColorScheme, ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
@@ -19,34 +17,9 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-const HiveLightTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: Colors.amber[500],
-    background: Colors.light.background,
-    card: Colors.light.surface,
-    text: Colors.light.text,
-    border: Colors.light.border,
-  },
-};
-
-const HiveDarkTheme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    primary: Colors.amber[400],
-    background: Colors.dark.background,
-    card: Colors.dark.surface,
-    text: Colors.dark.text,
-    border: Colors.dark.border,
-  },
-};
-
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
   });
 
   useEffect(() => {
@@ -69,11 +42,9 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
   const { session, user, initialLoading } = useAuth();
   const router = useRouter();
 
-  // Single redirect effect — handles initial load + session loss
   useEffect(() => {
     if (initialLoading) return;
 
@@ -88,18 +59,16 @@ function RootLayoutNav() {
 
   if (initialLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme === 'dark' ? 'dark' : 'light'].background }}>
-        <ActivityIndicator size="large" color={Colors.amber[500]} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? HiveDarkTheme : HiveLightTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </ThemeProvider>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+    </Stack>
   );
 }

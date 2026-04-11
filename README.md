@@ -32,3 +32,4 @@ npx expo start
 |---|------|---------|
 | 1 | 2026-04-08 | Initial scaffold — Expo project with 5 tabs (Home, Todos, Calendar, Leaderboard, Profile), mock data, warm amber theme, Add Todo/Event modals, WhatsApp nudge, Word of the Day API |
 | 2 | 2026-04-11 | Supabase integration — real auth (signup/login/family), RLS policies, DB migration, 25-bug audit fix (auth race conditions, cross-platform alerts, FAB positioning, stale closures, family_id filtering, podium layout, error handling) |
+| 3 | 2026-04-12 | Cloudflare Pages deployment — font MIME headers, SPA redirects, font-display:swap fix for icon loading, preload FontAwesome in HTML head |

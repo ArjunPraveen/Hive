@@ -37,15 +37,22 @@ export function AddEventModal({ visible, onClose }: Props) {
     { days: 7, label: 'In a week' },
   ];
 
-  const handleSubmit = () => {
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
     if (!title.trim()) return;
-    addEvent({
+    setError('');
+    const err = await addEvent({
       title: title.trim(),
       description: description.trim() || null,
       event_date: new Date(Date.now() + daysFromNow * 86400000).toISOString(),
       location: location.trim() || null,
-      created_by: user?.id || 'user-1',
+      created_by: user?.id || '',
     });
+    if (err) {
+      setError(err);
+      return;
+    }
     setTitle('');
     setDescription('');
     setLocation('');

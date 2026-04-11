@@ -17,8 +17,7 @@ const BADGES_MAP: Record<string, { label: string; color: string }> = {
 
 export default function LeaderboardScreen() {
   const colors = useThemeColors();
-  const { getLeaderboard } = useData();
-  const leaderboard = getLeaderboard();
+  const { leaderboard } = useData();
 
   const getBadge = (entry: typeof leaderboard[0], rank: number) => {
     if (entry.todosCompleted >= 5) return BADGES_MAP.taskmaster;
@@ -32,22 +31,21 @@ export default function LeaderboardScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}>
-      {/* Podium */}
+      {/* Podium — reorder to show 2nd, 1st, 3rd visually */}
+      {leaderboard.length >= 3 ? (
       <View style={styles.podium}>
-        {leaderboard.slice(0, 3).map((entry, index) => {
-          const podiumOrder = [1, 0, 2]; // 2nd, 1st, 3rd visually
-          const displayIndex = podiumOrder[index];
-          const isFirst = displayIndex === 0;
+        {[leaderboard[1], leaderboard[0], leaderboard[2]].map((entry, visualIndex) => {
+          const isFirst = visualIndex === 1; // center = 1st place
+          const rankIndex = [1, 0, 2][visualIndex]; // map back to actual rank
 
           return (
             <View
               key={entry.userId}
               style={[
                 styles.podiumItem,
-                { order: displayIndex },
                 isFirst && styles.podiumFirst,
               ]}>
-              <Text style={styles.rankEmoji}>{RANK_EMOJIS[index]}</Text>
+              <Text style={styles.rankEmoji}>{RANK_EMOJIS[rankIndex]}</Text>
               <Avatar
                 name={entry.name}
                 size={isFirst ? 64 : 48}
@@ -76,6 +74,7 @@ export default function LeaderboardScreen() {
           );
         })}
       </View>
+      ) : null}
 
       {/* Detailed List */}
       <View style={styles.listSection}>

@@ -1,25 +1,24 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import React, { useEffect } from 'react';
+import { useColorScheme, ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 
-import { AuthProvider } from '@/context/AuthContext';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
 import Colors from '@/constants/Colors';
 
 export { ErrorBoundary } from 'expo-router';
 
 export const unstable_settings = {
-  initialRouteName: '(tabs)',
+  initialRouteName: '(auth)',
 };
 
 SplashScreen.preventAutoHideAsync();
 
-// Custom themes based on Hive palette
 const HiveLightTheme = {
   ...DefaultTheme,
   colors: {
@@ -60,21 +59,47 @@ export default function RootLayout() {
 
   if (!loaded) return null;
 
-  return <RootLayoutNav />;
+  return (
+    <AuthProvider>
+      <DataProvider>
+        <RootLayoutNav />
+      </DataProvider>
+    </AuthProvider>
+  );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const { session, user, initialLoading } = useAuth();
+  const router = useRouter();
+
+  // Single redirect effect — handles initial load + session loss
+  useEffect(() => {
+    if (initialLoading) return;
+
+    if (!session) {
+      router.replace('/(auth)/login');
+    } else if (!user?.family_id) {
+      router.replace('/(auth)/join-family');
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [initialLoading, session, user?.family_id]);
+
+  if (initialLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme === 'dark' ? 'dark' : 'light'].background }}>
+        <ActivityIndicator size="large" color={Colors.amber[500]} />
+      </View>
+    );
+  }
 
   return (
-    <AuthProvider>
-      <DataProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? HiveDarkTheme : HiveLightTheme}>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          </Stack>
-        </ThemeProvider>
-      </DataProvider>
-    </AuthProvider>
+    <ThemeProvider value={colorScheme === 'dark' ? HiveDarkTheme : HiveLightTheme}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </ThemeProvider>
   );
 }

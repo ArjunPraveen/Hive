@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
-  Alert,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 
@@ -15,6 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { confirm, showAlert } from '@/lib/alert';
 import { Avatar } from '@/components/ui/Avatar';
 import { FAB } from '@/components/ui/FAB';
 import { AddTodoModal } from '@/components/AddTodoModal';
@@ -76,7 +76,7 @@ export default function TodosScreen() {
     if (!todo) return;
     const assignee = familyMembers.find((m) => m.id === todo.assigned_to);
     if (!assignee?.phone) {
-      Alert.alert('No phone number', `${assignee?.display_name || 'This person'} hasn't set their phone number yet.`);
+      showAlert('No phone number', `${assignee?.display_name || 'This person'} hasn't set their phone number yet.`);
       return;
     }
     const message = encodeURIComponent(
@@ -194,12 +194,7 @@ export default function TodosScreen() {
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity
-                      onPress={() => {
-                        Alert.alert('Delete Todo', 'Are you sure?', [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Delete', style: 'destructive', onPress: () => deleteTodo(todo.id) },
-                        ]);
-                      }}
+                      onPress={() => confirm('Delete Todo', 'Are you sure?', () => deleteTodo(todo.id), true)}
                       style={[styles.actionBtn, { backgroundColor: colors.danger + '15' }]}>
                       <FontAwesome name="trash-o" size={16} color={colors.danger} />
                     </TouchableOpacity>

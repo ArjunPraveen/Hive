@@ -1,12 +1,12 @@
 import React from 'react';
-import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { TouchableOpacity, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface FABProps {
   onPress: () => void;
   icon?: string;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function FAB({ onPress, icon = 'plus', style }: FABProps) {
@@ -25,7 +25,7 @@ export function FAB({ onPress, icon = 'plus', style }: FABProps) {
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 88, // 56px tab bar + 32px margin
     right: 24,
     width: 56,
     height: 56,

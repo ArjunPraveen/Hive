@@ -47,18 +47,24 @@ export function AddTodoModal({ visible, onClose }: Props) {
     { days: 7, label: '1 week' },
   ];
 
-  const handleSubmit = () => {
+  const [error, setError] = useState('');
+
+  const handleSubmit = async () => {
     if (!title.trim()) return;
-    addTodo({
+    setError('');
+    const err = await addTodo({
       title: title.trim(),
       description: description.trim() || null,
       deadline: deadlineDays ? new Date(Date.now() + deadlineDays * 86400000).toISOString() : null,
       priority,
       status: 'open',
-      created_by: user?.id || 'user-1',
-      assigned_to: assignedTo || user?.id || 'user-1',
+      created_by: user?.id || '',
+      assigned_to: assignedTo || user?.id || '',
     });
-    // Reset
+    if (err) {
+      setError(err);
+      return;
+    }
     setTitle('');
     setDescription('');
     setPriority(2);

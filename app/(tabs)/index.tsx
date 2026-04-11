@@ -28,7 +28,7 @@ interface WordOfDay {
 export default function DashboardScreen() {
   const colors = useThemeColors();
   const { user, family, familyMembers } = useAuth();
-  const { todos, events, getLeaderboard } = useData();
+  const { todos, events, leaderboard: fullLeaderboard } = useData();
   const [wordOfDay, setWordOfDay] = useState<WordOfDay | null>(null);
   const [wordLoading, setWordLoading] = useState(true);
 
@@ -39,7 +39,7 @@ export default function DashboardScreen() {
     .filter((e) => new Date(e.event_date) > new Date())
     .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
     .slice(0, 3);
-  const leaderboard = getLeaderboard().slice(0, 3);
+  const leaderboard = fullLeaderboard.slice(0, 3);
 
   const totalTodos = todos.filter((t) => t.status !== 'done').length;
   const doneTodos = todos.filter((t) => t.status === 'done').length;

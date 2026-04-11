@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import Colors from '@/constants/Colors';
+import { View, Text, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 
 const AVATAR_COLORS = [
   '#F59E0B', '#EF4444', '#3B82F6', '#10B981', '#8B5CF6',
@@ -10,7 +9,7 @@ const AVATAR_COLORS = [
 interface AvatarProps {
   name: string;
   size?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Avatar({ name, size = 40, style }: AvatarProps) {

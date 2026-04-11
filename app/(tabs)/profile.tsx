@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/Card';
+import { confirm, showAlert } from '@/lib/alert';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 
@@ -13,9 +14,7 @@ export default function ProfileScreen() {
   const { user, family, familyMembers, signOut } = useAuth();
 
   const handleCopyInvite = () => {
-    Alert.alert('Invite Code', `Share this code with family:\n\n${family?.invite_code}`, [
-      { text: 'OK' },
-    ]);
+    showAlert('Invite Code', `Share this code with family:\n\n${family?.invite_code}`);
   };
 
   return (
@@ -97,12 +96,7 @@ export default function ProfileScreen() {
 
       {/* Sign Out */}
       <TouchableOpacity
-        onPress={() => {
-          Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign Out', style: 'destructive', onPress: signOut },
-          ]);
-        }}
+        onPress={() => confirm('Sign Out', 'Are you sure you want to sign out?', signOut, true)}
         style={[styles.signOutBtn, { borderColor: colors.danger }]}>
         <Text style={[styles.signOutText, { color: colors.danger }]}>Sign Out</Text>
       </TouchableOpacity>

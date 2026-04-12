@@ -34,6 +34,9 @@ export const Colors = {
 
 import { Platform, StatusBar } from 'react-native';
 
+// Native driver not available on web — use JS fallback
+export const USE_NATIVE_DRIVER = Platform.OS !== 'web';
+
 // Safe top padding — accounts for status bar on Android, notch on iOS, minimal on web
 export const TOP_PADDING = Platform.select({
   android: (StatusBar.currentHeight || 40) + 8,

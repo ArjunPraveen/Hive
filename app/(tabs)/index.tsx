@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Animated, Easing, GestureResponderEvent } from 'react-native';
 import { router } from 'expo-router';
 import { CheckSquare, Calendar, Flame, BookOpen, Bell, ChevronRight, Trophy } from 'lucide-react-native';
 
-import Colors, { TOP_PADDING } from '@/constants/Colors';
+import Colors, { TOP_PADDING, USE_NATIVE_DRIVER } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { HexCard } from '@/components/ui/HexIcon';
@@ -37,8 +37,8 @@ export default function DashboardScreen() {
       })
       .finally(() => setWordLoading(false));
   }, []);
-  const allOpenTodos = todos.filter((t) => t.status !== 'done');
-  const todaysTodos = todos.filter((t) => t.status !== 'done' && t.assigned_to === user?.id);
+  const myOpenTodos = todos.filter((t) => t.status !== 'done' && t.assigned_to === user?.id);
+  const todaysTodos = myOpenTodos;
 
   // Find next upcoming event day and its events
   const todayStart = new Date();
@@ -76,13 +76,59 @@ export default function DashboardScreen() {
     return Colors.memberColors[idx % Colors.memberColors.length] || Colors.primary;
   };
 
+  // Easter egg: bee flies to wherever user taps
+  const beeX = useRef(new Animated.Value(0)).current;
+  const beeY = useRef(new Animated.Value(0)).current;
+  const beeHomeX = useRef(0);
+  const beeHomeY = useRef(0);
+
+  const onBeeHome = (e: any) => {
+    // Measure bee's position relative to the page
+    e.target?.measureInWindow?.((x: number, y: number) => {
+      beeHomeX.current = x;
+      beeHomeY.current = y;
+    });
+  };
+
+  const handleScreenTap = (e: GestureResponderEvent) => {
+    const { pageX, pageY } = e.nativeEvent;
+    const dx = pageX - beeHomeX.current - 10;
+    const dy = pageY - beeHomeY.current - 10;
+
+    Animated.sequence([
+      // Fly to tap
+      Animated.parallel([
+        Animated.timing(beeX, { toValue: dx, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(beeY, { toValue: dy, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+      ]),
+      // Pause
+      Animated.delay(800),
+      // Fly back
+      Animated.parallel([
+        Animated.timing(beeX, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(beeY, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+      ]),
+    ]).start();
+  };
+
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={s.container}
+      contentContainerStyle={s.content}
+      showsVerticalScrollIndicator={false}
+      onTouchEnd={handleScreenTap}>
       {/* Header */}
       <View style={s.header}>
         <View>
           <Text style={s.greeting}>Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}</Text>
-          <Text style={s.familyName}>{family?.name || 'Hive'} 🐝</Text>
+          <View style={s.familyRow}>
+            <Text style={s.familyName}>{family?.name || 'Hive'}</Text>
+            <Animated.Text
+              onLayout={onBeeHome}
+              style={[s.beeEmoji, { transform: [{ translateX: beeX }, { translateY: beeY }] }]}>
+              🐝
+            </Animated.Text>
+          </View>
         </View>
         <TouchableOpacity style={s.bellBtn}>
           <Bell size={18} color={Colors.foreground} />
@@ -113,7 +159,7 @@ export default function DashboardScreen() {
       <View style={s.statsRow}>
         <HexCard onPress={() => router.push('/(tabs)/todos')} strokeColor={Colors.primary}>
           <CheckSquare size={16} color={Colors.primary} />
-          <Text style={s.statNumber}>{allOpenTodos.length}</Text>
+          <Text style={s.statNumber}>{myOpenTodos.length}</Text>
           <Text style={s.statLabel}>Tasks left</Text>
         </HexCard>
         <HexCard onPress={() => router.push('/(tabs)/calendar')} strokeColor="#e74c3c">
@@ -145,7 +191,13 @@ export default function DashboardScreen() {
             <Text style={s.wordMeaning}>{word.meaning}</Text>
             {word.example && (
               <View style={s.wordExampleBox}>
-                <Text style={s.wordExample}>"{word.example}"</Text>
+                <Text style={s.wordExample}>
+                  "{word.example?.split(new RegExp(`(${word.word})`, 'i')).map((part, i) =>
+                    part.toLowerCase() === word.word?.toLowerCase()
+                      ? <Text key={i} style={s.wordExampleBold}>{part}</Text>
+                      : part
+                  )}"
+                </Text>
               </View>
             )}
           </>
@@ -238,7 +290,9 @@ const s = StyleSheet.create({
   content: { paddingBottom: 80, maxWidth: 500, alignSelf: 'center', width: '100%' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: TOP_PADDING, paddingBottom: 12 },
   greeting: { fontSize: 12, color: Colors.muted },
+  familyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   familyName: { fontSize: 18, fontWeight: '700', color: Colors.foreground, marginTop: 2 },
+  beeEmoji: { fontSize: 18, zIndex: 100 },
   bellBtn: { padding: 8, backgroundColor: Colors.surface, borderRadius: 20 },
   bellDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
   membersScroll: { flexGrow: 0, maxHeight: 72, marginTop: 8 },
@@ -260,6 +314,7 @@ const s = StyleSheet.create({
   wordMeaning: { fontSize: 14, color: Colors.muted, marginTop: 4, lineHeight: 20 },
   wordExampleBox: { marginTop: 8, backgroundColor: 'rgba(245,166,35,0.08)', padding: 10, borderRadius: 8 },
   wordExample: { fontSize: 13, color: Colors.primary, fontStyle: 'italic', lineHeight: 18 },
+  wordExampleBold: { fontWeight: '800', fontStyle: 'italic' },
   // Sections
   section: { paddingHorizontal: 16, marginTop: 16 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

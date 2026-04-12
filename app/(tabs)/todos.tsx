@@ -1,15 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking, Platform, Animated,
 } from 'react-native';
 import { ArrowLeft, Plus, Check, MessageCircle, Trash2, Pencil, X, CalendarDays, Share2 } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 
-import Colors, { TOP_PADDING } from '@/constants/Colors';
+import Colors, { TOP_PADDING, USE_NATIVE_DRIVER } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { showAlert, confirm } from '@/lib/alert';
+import { HexIcon } from '@/components/ui/HexIcon';
+
+function PulsingHex({ onPress, bg, label }: { onPress: () => void; bg: string; label: string }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.12, duration: 1200, useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(scale, { toValue: 1, duration: 1200, useNativeDriver: USE_NATIVE_DRIVER }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <HexIcon size={32} bg={bg}>
+          <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>{label}</Text>
+        </HexIcon>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
 
 function DatePickerField({ value, onChange, placeholder = 'Pick a date' }: {
   value: string;
@@ -84,11 +108,13 @@ export default function TodosScreen() {
   const { user, familyMembers } = useAuth();
   const { todos, toggleTodoStatus, addTodo, deleteTodo, updateTodo } = useData();
   const [filter, setFilter] = useState('All');
+  const [labelFilter, setLabelFilter] = useState<'all' | 'personal' | 'work'>('all');
   const [showAdd, setShowAdd] = useState(false);
   const [newTodoText, setNewTodoText] = useState('');
   const [newPriority, setNewPriority] = useState(2);
   const [newDeadlineDate, setNewDeadlineDate] = useState('');
   const [newAssignee, setNewAssignee] = useState(user?.id || '');
+  const [newLabel, setNewLabel] = useState<'personal' | 'work'>('personal');
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,11 +122,13 @@ export default function TodosScreen() {
   const [editPriority, setEditPriority] = useState(2);
   const [editDeadline, setEditDeadline] = useState('');
   const [editAssignee, setEditAssignee] = useState('');
+  const [editLabel, setEditLabel] = useState<'personal' | 'work'>('personal');
 
   const startEdit = (todo: typeof todos[0]) => {
     setEditingId(todo.id);
     setEditTitle(todo.title);
     setEditPriority(todo.priority);
+    setEditLabel(todo.label || 'personal');
     setEditDeadline(todo.deadline ? todo.deadline.split('T')[0] : '');
     setEditAssignee(todo.assigned_to);
   };
@@ -112,13 +140,14 @@ export default function TodosScreen() {
       priority: editPriority,
       deadline: editDeadline ? new Date(editDeadline + 'T23:59:59').toISOString() : null,
       assigned_to: editAssignee,
+      label: editLabel,
     });
     setEditingId(null);
   };
 
   const cancelEdit = () => setEditingId(null);
 
-  const members = ['All', ...familyMembers.map((m) => m.display_name)];
+  const members = ['All', ...familyMembers.map((m) => m.display_name.split(' ')[0])];
   const getMember = (id: string) => familyMembers.find((m) => m.id === id);
   const getMemberEmoji = (m: any) => m?.role_label === 'Mom' ? '👩' : m?.role_label === 'Dad' ? '👨' : m?.role_label === 'Son' ? '🧑' : m?.role_label === 'Daughter' ? '👧' : '😊';
   const getMemberColor = (id: string) => {
@@ -126,14 +155,16 @@ export default function TodosScreen() {
     return Colors.memberColors[idx % Colors.memberColors.length] || Colors.primary;
   };
 
-  const filteredTodos = filter === 'All'
-    ? todos
-    : todos.filter((t) => getMember(t.assigned_to)?.display_name === filter);
+  const filteredTodos = todos.filter((t) => {
+    if (filter !== 'All' && getMember(t.assigned_to)?.display_name.split(' ')[0] !== filter) return false;
+    if (labelFilter !== 'all' && (t.label || 'personal') !== labelFilter) return false;
+    return true;
+  });
 
   const activeTodos = filteredTodos.filter((t) => t.status !== 'done');
   const doneTodos = filteredTodos.filter((t) => t.status === 'done');
-  const remaining = todos.filter((t) => t.status !== 'done').length;
-  const total = todos.length;
+  const remaining = filteredTodos.filter((t) => t.status !== 'done').length;
+  const total = filteredTodos.length;
   const progress = total > 0 ? ((total - remaining) / total) * 100 : 0;
 
   const priorities = [
@@ -143,14 +174,31 @@ export default function TodosScreen() {
     { value: 3, label: 'P3', color: Colors.p3 },
   ];
 
+  const [titleError, setTitleError] = useState(false);
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  const triggerShake = () => {
+    setTitleError(true);
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: USE_NATIVE_DRIVER }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: USE_NATIVE_DRIVER }),
+      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: USE_NATIVE_DRIVER }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: USE_NATIVE_DRIVER }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: USE_NATIVE_DRIVER }),
+    ]).start();
+    setTimeout(() => setTitleError(false), 2000);
+  };
+
   const handleAdd = async () => {
-    if (!newTodoText.trim() || !user) return;
+    if (!newTodoText.trim()) { triggerShake(); return; }
+    if (!user) return;
     const err = await addTodo({
       title: newTodoText.trim(),
       description: null,
       deadline: newDeadlineDate ? new Date(newDeadlineDate + 'T23:59:59').toISOString() : null,
       priority: newPriority,
       status: 'open',
+      label: newLabel,
       created_by: user.id,
       assigned_to: newAssignee || user.id,
     });
@@ -159,6 +207,7 @@ export default function TodosScreen() {
     } else {
       setNewTodoText('');
       setNewPriority(2);
+      setNewLabel('personal');
       setNewDeadlineDate('');
       setNewAssignee(user.id);
       setShowAdd(false);
@@ -213,12 +262,8 @@ export default function TodosScreen() {
     const todo = todos.find((t) => t.id === todoId);
     if (!todo) return;
     const assignee = getMember(todo.assigned_to);
-    if (!assignee?.phone) {
-      showAlert('No phone number', `${assignee?.display_name || 'This person'} hasn't set their phone number yet.`);
-      return;
-    }
-    const msg = encodeURIComponent(`Hey ${assignee.display_name}! Don't forget: "${todo.title}" 🐝`);
-    Linking.openURL(`https://wa.me/${assignee.phone.replace(/[^0-9]/g, '')}?text=${msg}`);
+    const msg = encodeURIComponent(`Hey ${assignee?.display_name || 'there'}! Don't forget: "${todo.title}" 🐝`);
+    Linking.openURL(`https://wa.me/?text=${msg}`);
   };
 
   const renderTodoItem = (todo: typeof todos[0]) => {
@@ -239,6 +284,17 @@ export default function TodosScreen() {
                   style={[s.chip, editPriority === p.value && { backgroundColor: p.color + '25', borderColor: p.color }]}>
                   <View style={[s.chipDot, { backgroundColor: p.color }]} />
                   <Text style={[s.chipText, editPriority === p.value && { color: p.color }]}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Label</Text>
+            <View style={s.addFormChips}>
+              {(['personal', 'work'] as const).map((l) => (
+                <TouchableOpacity key={l} onPress={() => setEditLabel(l)}
+                  style={[s.chip, editLabel === l && { backgroundColor: l === 'personal' ? '#9b59b620' : '#3498db20', borderColor: l === 'personal' ? '#9b59b6' : '#3498db' }]}>
+                  <Text style={[s.chipText, editLabel === l && { color: l === 'personal' ? '#9b59b6' : '#3498db' }]}>{l.charAt(0).toUpperCase() + l.slice(1)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -285,9 +341,12 @@ export default function TodosScreen() {
         <View style={s.todoText}>
           <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
           <View style={s.todoMeta}>
-            <Text style={s.todoAssignee}>{member?.display_name || 'Unknown'}</Text>
+            <Text style={s.todoAssignee}>{member?.display_name.split(' ')[0] || 'Unknown'}</Text>
             <View style={[s.priorityBadge, { backgroundColor: [Colors.p0, Colors.p1, Colors.p2, Colors.p3][todo.priority] + '20' }]}>
               <Text style={[s.priorityText, { color: [Colors.p0, Colors.p1, Colors.p2, Colors.p3][todo.priority] }]}>P{todo.priority}</Text>
+            </View>
+            <View style={[s.labelBadge, { backgroundColor: todo.label === 'work' ? '#3498db20' : '#9b59b620' }]}>
+              <Text style={[s.labelText, { color: todo.label === 'work' ? '#3498db' : '#9b59b6' }]}>{todo.label === 'work' ? 'Work' : 'Personal'}</Text>
             </View>
           </View>
         </View>
@@ -308,6 +367,8 @@ export default function TodosScreen() {
 
   return (
     <View style={s.container}>
+      {/* Fixed top section */}
+      <View style={s.topSection}>
       {/* Header */}
       <View style={s.header}>
         <View style={s.headerRow}>
@@ -315,6 +376,11 @@ export default function TodosScreen() {
             <ArrowLeft size={20} color={Colors.foreground} />
           </TouchableOpacity>
           <Text style={s.title}>Todos</Text>
+          <PulsingHex
+            onPress={() => setLabelFilter((prev) => prev === 'all' ? 'personal' : prev === 'personal' ? 'work' : 'all')}
+            bg={labelFilter === 'all' ? Colors.primaryDark : labelFilter === 'personal' ? '#9b59b6' : '#3498db'}
+            label={labelFilter === 'all' ? 'All' : labelFilter === 'personal' ? 'P' : 'W'}
+          />
           <View style={s.headerRight}>
             <Text style={s.remainingNum}>{remaining}</Text>
             <Text style={s.remainingLabel}>of {total} left</Text>
@@ -352,20 +418,24 @@ export default function TodosScreen() {
             placeholderTextColor={Colors.muted}
             style={s.addInput}
           />
-          <TouchableOpacity style={s.addBtn} onPress={() => setShowAdd(true)} activeOpacity={0.8}>
-            <Plus size={18} color={Colors.background} />
+          <TouchableOpacity onPress={() => setShowAdd(true)} activeOpacity={0.8}>
+            <HexIcon size={40} bg={Colors.primary}>
+              <Plus size={16} color={Colors.background} />
+            </HexIcon>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={s.addForm}>
-          <TextInput
-            value={newTodoText}
-            onChangeText={setNewTodoText}
-            placeholder="What needs to be done?"
-            placeholderTextColor={Colors.muted}
-            style={s.addFormTitle}
-            autoFocus
-          />
+          <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+            <TextInput
+              value={newTodoText}
+              onChangeText={(t) => { setNewTodoText(t); if (t.trim()) setTitleError(false); }}
+              placeholder="What needs to be done?"
+              placeholderTextColor={titleError ? Colors.destructive : Colors.muted}
+              style={[s.addFormTitle, titleError && { borderWidth: 1, borderColor: Colors.destructive }]}
+              autoFocus
+            />
+          </Animated.View>
 
           {/* Priority */}
           <View style={s.addFormRow}>
@@ -378,6 +448,19 @@ export default function TodosScreen() {
                   style={[s.chip, newPriority === p.value && { backgroundColor: p.color + '25', borderColor: p.color }]}>
                   <View style={[s.chipDot, { backgroundColor: p.color }]} />
                   <Text style={[s.chipText, newPriority === p.value && { color: p.color }]}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Label */}
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Label</Text>
+            <View style={s.addFormChips}>
+              {(['personal', 'work'] as const).map((l) => (
+                <TouchableOpacity key={l} onPress={() => setNewLabel(l)}
+                  style={[s.chip, newLabel === l && { backgroundColor: l === 'personal' ? '#9b59b620' : '#3498db20', borderColor: l === 'personal' ? '#9b59b6' : '#3498db' }]}>
+                  <Text style={[s.chipText, newLabel === l && { color: l === 'personal' ? '#9b59b6' : '#3498db' }]}>{l.charAt(0).toUpperCase() + l.slice(1)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -420,9 +503,10 @@ export default function TodosScreen() {
           </View>
         </View>
       )}
+      </View>
 
       {/* Todo list */}
-      <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={s.todoList} contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
         {/* Overdue */}
         {overdueTodos.length > 0 && (
           <>
@@ -458,7 +542,7 @@ export default function TodosScreen() {
                 </TouchableOpacity>
                 <View style={s.todoText}>
                   <Text style={[s.todoTitle, s.todoTitleDone]} numberOfLines={1}>{todo.title}</Text>
-                  <Text style={s.todoAssignee}>{getMember(todo.assigned_to)?.display_name || 'Unknown'}</Text>
+                  <Text style={s.todoAssignee}>{getMember(todo.assigned_to)?.display_name.split(' ')[0] || 'Unknown'}</Text>
                 </View>
                 <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
                   <Trash2 size={14} color={Colors.destructive} />
@@ -480,6 +564,7 @@ export default function TodosScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  topSection: { flexShrink: 0 },
   header: { paddingHorizontal: 16, paddingTop: TOP_PADDING, paddingBottom: 8 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   title: { flex: 1, fontSize: 18, fontWeight: '700', color: Colors.foreground },
@@ -488,16 +573,17 @@ const s = StyleSheet.create({
   remainingLabel: { fontSize: 10, color: Colors.muted, marginTop: -2 },
   progressBar: { height: 6, backgroundColor: Colors.surface, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
-  filterScroll: { flexGrow: 0 },
+  filterScroll: { flexGrow: 0, flexShrink: 0 },
   filterRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, gap: 8, alignItems: 'center' },
+  labelHexText: { fontSize: 10, fontWeight: '800', color: '#fff' },
   filterPill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: Colors.surface },
   filterPillActive: { backgroundColor: Colors.primary },
   filterText: { fontSize: 12, fontWeight: '600', color: Colors.muted },
   filterTextActive: { color: Colors.background },
-  addRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginTop: 4, marginBottom: 12 },
+  addRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginTop: 4, marginBottom: 12, flexShrink: 0 },
   addInput: { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: Colors.foreground, borderWidth: 1, borderColor: Colors.border },
   addBtn: { backgroundColor: Colors.primary, padding: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  addForm: { marginHorizontal: 16, marginTop: 4, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.primaryBorder, gap: 10 },
+  addForm: { marginHorizontal: 16, marginTop: 4, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.primaryBorder, gap: 10, flexShrink: 0 },
   addFormTitle: { backgroundColor: Colors.surfaceLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.foreground },
   addFormRow: { gap: 6 },
   addFormLabel: { fontSize: 10, fontWeight: '600', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -511,6 +597,7 @@ const s = StyleSheet.create({
   cancelText: { fontSize: 13, fontWeight: '600', color: Colors.muted },
   submitBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: Colors.primary },
   submitText: { fontSize: 13, fontWeight: '600', color: Colors.background },
+  todoList: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingBottom: 100, gap: 8 },
   todoCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: Colors.muted, alignItems: 'center', justifyContent: 'center' },
@@ -524,6 +611,8 @@ const s = StyleSheet.create({
   todoAssignee: { fontSize: 10, color: Colors.muted },
   priorityBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
   priorityText: { fontSize: 9, fontWeight: '700' },
+  labelBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  labelText: { fontSize: 9 },
   todoDueDate: { fontSize: 10, color: Colors.muted },
   nudgeBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.successBg },
   editBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.primaryBg },

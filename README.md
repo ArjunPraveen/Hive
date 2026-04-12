@@ -12,6 +12,7 @@ A family productivity app where everyone stays in sync — shared todos, leaderb
 | 4 | 2026-04-12 | Full design revamp from Figma — dark theme, Lucide icons, HexIcon bee branding, 4-tab layout, inline forms, emoji avatars, podium leaderboard |
 | 5 | 2026-04-12 | Expanded todo form (priority/deadline/assignee), todos grouped by deadline, edit/delete on todos and events, hex stat cards, Word of the Day via freeapi.me, Kerala holidays seed |
 | 6 | 2026-04-12 | Native date picker (iOS/Android/Web), event emoji icons (birthday/festival/etc), WhatsApp share on task completion, responsive platform-aware padding |
+| 7 | 2026-04-13 | Personal/Work labels on todos, label hex toggle, edit/delete inline, first-name filters, todo validation shake, bee easter egg, bold word in example sentence, WhatsApp group share |
 
 ## Tech Stack
 

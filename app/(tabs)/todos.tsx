@@ -1,20 +1,122 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking, Platform,
 } from 'react-native';
-import { ArrowLeft, Plus, Check, MessageCircle } from 'lucide-react-native';
+import { ArrowLeft, Plus, Check, MessageCircle, Trash2, Pencil, X, CalendarDays, Share2 } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 
-import Colors from '@/constants/Colors';
+import Colors, { TOP_PADDING } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
-import { showAlert } from '@/lib/alert';
+import { showAlert, confirm } from '@/lib/alert';
+
+function DatePickerField({ value, onChange, placeholder = 'Pick a date' }: {
+  value: string;
+  onChange: (date: string) => void;
+  placeholder?: string;
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+  const dateValue = value ? new Date(value + 'T00:00:00') : new Date();
+  const displayText = value
+    ? new Date(value + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '';
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={dpStyles.row}>
+        <CalendarDays size={16} color={Colors.muted} />
+        <input
+          type="date"
+          value={value}
+          onChange={(e: any) => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={{
+            flex: 1,
+            fontSize: 14,
+            color: Colors.foreground,
+            backgroundColor: 'transparent',
+            border: 'none',
+            outline: 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <TouchableOpacity style={dpStyles.row} onPress={() => setShowPicker(true)}>
+        <CalendarDays size={16} color={Colors.muted} />
+        <Text style={[dpStyles.text, !value && { color: Colors.muted }]}>
+          {displayText || placeholder}
+        </Text>
+      </TouchableOpacity>
+      {showPicker && (
+        <DateTimePicker
+          value={dateValue}
+          mode="date"
+          display="default"
+          minimumDate={new Date()}
+          onChange={(_, selectedDate) => {
+            setShowPicker(false);
+            if (selectedDate) {
+              const y = selectedDate.getFullYear();
+              const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+              const d = String(selectedDate.getDate()).padStart(2, '0');
+              onChange(`${y}-${m}-${d}`);
+            }
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+const dpStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  webInput: { flex: 1, fontSize: 14, color: Colors.foreground, backgroundColor: 'transparent' },
+  text: { fontSize: 14, color: Colors.foreground },
+});
 
 export default function TodosScreen() {
   const { user, familyMembers } = useAuth();
-  const { todos, toggleTodoStatus, addTodo } = useData();
+  const { todos, toggleTodoStatus, addTodo, deleteTodo, updateTodo } = useData();
   const [filter, setFilter] = useState('All');
+  const [showAdd, setShowAdd] = useState(false);
   const [newTodoText, setNewTodoText] = useState('');
+  const [newPriority, setNewPriority] = useState(2);
+  const [newDeadlineDate, setNewDeadlineDate] = useState('');
+  const [newAssignee, setNewAssignee] = useState(user?.id || '');
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editPriority, setEditPriority] = useState(2);
+  const [editDeadline, setEditDeadline] = useState('');
+  const [editAssignee, setEditAssignee] = useState('');
+
+  const startEdit = (todo: typeof todos[0]) => {
+    setEditingId(todo.id);
+    setEditTitle(todo.title);
+    setEditPriority(todo.priority);
+    setEditDeadline(todo.deadline ? todo.deadline.split('T')[0] : '');
+    setEditAssignee(todo.assigned_to);
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editTitle.trim()) return;
+    await updateTodo(editingId, {
+      title: editTitle.trim(),
+      priority: editPriority,
+      deadline: editDeadline ? new Date(editDeadline + 'T23:59:59').toISOString() : null,
+      assigned_to: editAssignee,
+    });
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => setEditingId(null);
 
   const members = ['All', ...familyMembers.map((m) => m.display_name)];
   const getMember = (id: string) => familyMembers.find((m) => m.id === id);
@@ -34,18 +136,77 @@ export default function TodosScreen() {
   const total = todos.length;
   const progress = total > 0 ? ((total - remaining) / total) * 100 : 0;
 
+  const priorities = [
+    { value: 0, label: 'P0', color: Colors.p0 },
+    { value: 1, label: 'P1', color: Colors.p1 },
+    { value: 2, label: 'P2', color: Colors.p2 },
+    { value: 3, label: 'P3', color: Colors.p3 },
+  ];
+
   const handleAdd = async () => {
     if (!newTodoText.trim() || !user) return;
-    await addTodo({
+    const err = await addTodo({
       title: newTodoText.trim(),
       description: null,
-      deadline: null,
-      priority: 2,
+      deadline: newDeadlineDate ? new Date(newDeadlineDate + 'T23:59:59').toISOString() : null,
+      priority: newPriority,
       status: 'open',
       created_by: user.id,
-      assigned_to: user.id,
+      assigned_to: newAssignee || user.id,
     });
-    setNewTodoText('');
+    if (err) {
+      showAlert('Error', err);
+    } else {
+      setNewTodoText('');
+      setNewPriority(2);
+      setNewDeadlineDate('');
+      setNewAssignee(user.id);
+      setShowAdd(false);
+    }
+  };
+
+  // Group active todos by deadline
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const overdueTodos = activeTodos.filter((t) => t.deadline && new Date(t.deadline) < todayStart);
+  const noDeadlineTodos = activeTodos.filter((t) => !t.deadline);
+  const withDeadlineTodos = activeTodos.filter((t) => t.deadline && new Date(t.deadline) >= todayStart);
+
+  // Group by deadline date
+  const deadlineGroups: { date: string; label: string; todos: typeof activeTodos }[] = [];
+  const grouped = new Map<string, typeof activeTodos>();
+  withDeadlineTodos.forEach((t) => {
+    const d = new Date(t.deadline!);
+    const key = d.toISOString().split('T')[0];
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(t);
+  });
+  // Sort by date
+  [...grouped.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([key, todos]) => {
+      const d = new Date(key + 'T00:00:00');
+      const label = d.toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
+      deadlineGroups.push({ date: key, label: `Complete by ${label}`, todos });
+    });
+
+  const handleToggle = async (todoId: string) => {
+    const todo = todos.find((t) => t.id === todoId);
+    if (!todo) return;
+    const wasOpen = todo.status !== 'done';
+    await toggleTodoStatus(todoId);
+
+    // Show share prompt only when completing (not uncompleting)
+    if (wasOpen) {
+      const memberName = getMember(todo.assigned_to)?.display_name || 'Someone';
+      const msg = encodeURIComponent(`${memberName} just completed: "${todo.title}" ✅🐝`);
+      confirm(
+        'Task completed! 🎉',
+        `Share this achievement with the family?`,
+        () => Linking.openURL(`https://wa.me/?text=${msg}`),
+      );
+    }
   };
 
   const handleNudge = (todoId: string) => {
@@ -58,6 +219,91 @@ export default function TodosScreen() {
     }
     const msg = encodeURIComponent(`Hey ${assignee.display_name}! Don't forget: "${todo.title}" 🐝`);
     Linking.openURL(`https://wa.me/${assignee.phone.replace(/[^0-9]/g, '')}?text=${msg}`);
+  };
+
+  const renderTodoItem = (todo: typeof todos[0]) => {
+    const member = getMember(todo.assigned_to);
+    const color = getMemberColor(todo.assigned_to);
+    const isOverdue = todo.deadline && new Date(todo.deadline) < todayStart;
+
+    // Inline edit form
+    if (editingId === todo.id) {
+      return (
+        <View key={todo.id} style={s.editForm}>
+          <TextInput value={editTitle} onChangeText={setEditTitle} style={s.addFormTitle} autoFocus />
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Priority</Text>
+            <View style={s.addFormChips}>
+              {priorities.map((p) => (
+                <TouchableOpacity key={p.value} onPress={() => setEditPriority(p.value)}
+                  style={[s.chip, editPriority === p.value && { backgroundColor: p.color + '25', borderColor: p.color }]}>
+                  <View style={[s.chipDot, { backgroundColor: p.color }]} />
+                  <Text style={[s.chipText, editPriority === p.value && { color: p.color }]}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Deadline</Text>
+            <DatePickerField value={editDeadline} onChange={setEditDeadline} />
+          </View>
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Assign to</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={s.addFormChips}>
+              {familyMembers.map((m) => {
+                const mc = getMemberColor(m.id);
+                return (
+                  <TouchableOpacity key={m.id} onPress={() => setEditAssignee(m.id)}
+                    style={[s.assignChip, editAssignee === m.id && { backgroundColor: mc + '20', borderColor: mc }]}>
+                    <Text style={{ fontSize: 12 }}>{getMemberEmoji(m)}</Text>
+                    <Text style={[s.chipText, editAssignee === m.id && { color: mc }]}>{m.display_name.split(' ')[0]}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+          <View style={s.addFormActions}>
+            <TouchableOpacity onPress={cancelEdit} style={s.cancelBtn}>
+              <Text style={s.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.submitBtn} onPress={saveEdit} activeOpacity={0.8}>
+              <Text style={s.submitText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View key={todo.id} style={[s.todoCard, isOverdue && { borderLeftWidth: 3, borderLeftColor: Colors.destructive }]}>
+        <TouchableOpacity style={s.checkbox} onPress={() => handleToggle(todo.id)}>
+          <View style={s.checkboxInner} />
+        </TouchableOpacity>
+        <View style={[s.todoEmoji, { backgroundColor: color + '25' }]}>
+          <Text style={{ fontSize: 12 }}>{getMemberEmoji(member)}</Text>
+        </View>
+        <View style={s.todoText}>
+          <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
+          <View style={s.todoMeta}>
+            <Text style={s.todoAssignee}>{member?.display_name || 'Unknown'}</Text>
+            <View style={[s.priorityBadge, { backgroundColor: [Colors.p0, Colors.p1, Colors.p2, Colors.p3][todo.priority] + '20' }]}>
+              <Text style={[s.priorityText, { color: [Colors.p0, Colors.p1, Colors.p2, Colors.p3][todo.priority] }]}>P{todo.priority}</Text>
+            </View>
+          </View>
+        </View>
+        {todo.assigned_to !== user?.id && (
+          <TouchableOpacity style={s.nudgeBtn} onPress={() => handleNudge(todo.id)}>
+            <MessageCircle size={15} color="#25D366" />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={s.editBtn} onPress={() => startEdit(todo)}>
+          <Pencil size={14} color={Colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
+          <Trash2 size={14} color={Colors.destructive} />
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   return (
@@ -96,62 +342,136 @@ export default function TodosScreen() {
       </ScrollView>
 
       {/* Add todo */}
-      <View style={s.addRow}>
-        <TextInput
-          value={newTodoText}
-          onChangeText={setNewTodoText}
-          onSubmitEditing={handleAdd}
-          placeholder="Add a new todo..."
-          placeholderTextColor={Colors.muted}
-          style={s.addInput}
-          returnKeyType="done"
-        />
-        <TouchableOpacity style={s.addBtn} onPress={handleAdd} activeOpacity={0.8}>
-          <Plus size={18} color={Colors.background} />
-        </TouchableOpacity>
-      </View>
+      {!showAdd ? (
+        <View style={s.addRow}>
+          <TextInput
+            value={newTodoText}
+            onChangeText={setNewTodoText}
+            onFocus={() => setShowAdd(true)}
+            placeholder="Add a new todo..."
+            placeholderTextColor={Colors.muted}
+            style={s.addInput}
+          />
+          <TouchableOpacity style={s.addBtn} onPress={() => setShowAdd(true)} activeOpacity={0.8}>
+            <Plus size={18} color={Colors.background} />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={s.addForm}>
+          <TextInput
+            value={newTodoText}
+            onChangeText={setNewTodoText}
+            placeholder="What needs to be done?"
+            placeholderTextColor={Colors.muted}
+            style={s.addFormTitle}
+            autoFocus
+          />
+
+          {/* Priority */}
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Priority</Text>
+            <View style={s.addFormChips}>
+              {priorities.map((p) => (
+                <TouchableOpacity
+                  key={p.value}
+                  onPress={() => setNewPriority(p.value)}
+                  style={[s.chip, newPriority === p.value && { backgroundColor: p.color + '25', borderColor: p.color }]}>
+                  <View style={[s.chipDot, { backgroundColor: p.color }]} />
+                  <Text style={[s.chipText, newPriority === p.value && { color: p.color }]}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Deadline */}
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Deadline</Text>
+            <DatePickerField value={newDeadlineDate} onChange={setNewDeadlineDate} />
+          </View>
+
+          {/* Assignee */}
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Assign to</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={s.addFormChips}>
+              {familyMembers.map((m) => {
+                const color = getMemberColor(m.id);
+                const selected = newAssignee === m.id;
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    onPress={() => setNewAssignee(m.id)}
+                    style={[s.assignChip, selected && { backgroundColor: color + '20', borderColor: color }]}>
+                    <Text style={{ fontSize: 12 }}>{getMemberEmoji(m)}</Text>
+                    <Text style={[s.chipText, selected && { color }]}>{m.display_name.split(' ')[0]}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {/* Actions */}
+          <View style={s.addFormActions}>
+            <TouchableOpacity onPress={() => setShowAdd(false)} style={s.cancelBtn}>
+              <Text style={s.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.submitBtn} onPress={handleAdd} activeOpacity={0.8}>
+              <Text style={s.submitText}>Add Todo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Todo list */}
       <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
-        {activeTodos.map((todo) => {
-          const member = getMember(todo.assigned_to);
-          const color = getMemberColor(todo.assigned_to);
-          return (
-            <View key={todo.id} style={s.todoCard}>
-              <TouchableOpacity style={s.checkbox} onPress={() => toggleTodoStatus(todo.id)}>
-                <View style={s.checkboxInner} />
-              </TouchableOpacity>
-              <View style={[s.todoEmoji, { backgroundColor: color + '25' }]}>
-                <Text style={{ fontSize: 12 }}>{getMemberEmoji(member)}</Text>
-              </View>
-              <View style={s.todoText}>
-                <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
-                <Text style={s.todoAssignee}>{member?.display_name || 'Unknown'}</Text>
-              </View>
-              {todo.assigned_to !== user?.id && (
-                <TouchableOpacity style={s.nudgeBtn} onPress={() => handleNudge(todo.id)}>
-                  <MessageCircle size={15} color="#25D366" />
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
+        {/* Overdue */}
+        {overdueTodos.length > 0 && (
+          <>
+            <Text style={[s.groupLabel, { color: Colors.destructive }]}>Overdue</Text>
+            {overdueTodos.map((todo) => renderTodoItem(todo))}
+          </>
+        )}
 
+        {/* Grouped by deadline */}
+        {deadlineGroups.map((group) => (
+          <View key={group.date}>
+            <Text style={s.groupLabel}>{group.label}</Text>
+            {group.todos.map((todo) => renderTodoItem(todo))}
+          </View>
+        ))}
+
+        {/* No deadline */}
+        {noDeadlineTodos.length > 0 && (
+          <>
+            <Text style={s.groupLabel}>No deadline</Text>
+            {noDeadlineTodos.map((todo) => renderTodoItem(todo))}
+          </>
+        )}
+
+        {/* Completed */}
         {doneTodos.length > 0 && (
           <>
-            <Text style={s.doneLabel}>Completed ({doneTodos.length})</Text>
+            <Text style={s.groupLabel}>Completed ({doneTodos.length})</Text>
             {doneTodos.map((todo) => (
               <View key={todo.id} style={[s.todoCard, { opacity: 0.4 }]}>
-                <TouchableOpacity style={s.checkboxDone} onPress={() => toggleTodoStatus(todo.id)}>
+                <TouchableOpacity style={s.checkboxDone} onPress={() => handleToggle(todo.id)}>
                   <Check size={12} color={Colors.background} />
                 </TouchableOpacity>
                 <View style={s.todoText}>
                   <Text style={[s.todoTitle, s.todoTitleDone]} numberOfLines={1}>{todo.title}</Text>
                   <Text style={s.todoAssignee}>{getMember(todo.assigned_to)?.display_name || 'Unknown'}</Text>
                 </View>
+                <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
+                  <Trash2 size={14} color={Colors.destructive} />
+                </TouchableOpacity>
               </View>
             ))}
           </>
+        )}
+
+        {activeTodos.length === 0 && doneTodos.length === 0 && (
+          <View style={s.emptyState}>
+            <Text style={s.emptyText}>No todos yet. Add one above!</Text>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -160,7 +480,7 @@ export default function TodosScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 8 },
+  header: { paddingHorizontal: 16, paddingTop: TOP_PADDING, paddingBottom: 8 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   title: { flex: 1, fontSize: 18, fontWeight: '700', color: Colors.foreground },
   headerRight: { alignItems: 'flex-end' },
@@ -177,6 +497,20 @@ const s = StyleSheet.create({
   addRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginTop: 4, marginBottom: 12 },
   addInput: { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: Colors.foreground, borderWidth: 1, borderColor: Colors.border },
   addBtn: { backgroundColor: Colors.primary, padding: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  addForm: { marginHorizontal: 16, marginTop: 4, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.primaryBorder, gap: 10 },
+  addFormTitle: { backgroundColor: Colors.surfaceLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.foreground },
+  addFormRow: { gap: 6 },
+  addFormLabel: { fontSize: 10, fontWeight: '600', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  addFormChips: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, backgroundColor: Colors.surfaceLight, borderWidth: 1, borderColor: Colors.border },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipText: { fontSize: 11, fontWeight: '600', color: Colors.muted },
+  assignChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, backgroundColor: Colors.surfaceLight, borderWidth: 1, borderColor: Colors.border },
+  addFormActions: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  cancelBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: Colors.surfaceLight },
+  cancelText: { fontSize: 13, fontWeight: '600', color: Colors.muted },
+  submitBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: Colors.primary },
+  submitText: { fontSize: 13, fontWeight: '600', color: Colors.background },
   listContent: { paddingHorizontal: 16, paddingBottom: 100, gap: 8 },
   todoCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: Colors.muted, alignItems: 'center', justifyContent: 'center' },
@@ -186,7 +520,16 @@ const s = StyleSheet.create({
   todoText: { flex: 1 },
   todoTitle: { fontSize: 14, color: Colors.foreground },
   todoTitleDone: { textDecorationLine: 'line-through' },
-  todoAssignee: { fontSize: 10, color: Colors.muted, marginTop: 1 },
+  todoMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
+  todoAssignee: { fontSize: 10, color: Colors.muted },
+  priorityBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  priorityText: { fontSize: 9, fontWeight: '700' },
+  todoDueDate: { fontSize: 10, color: Colors.muted },
   nudgeBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.successBg },
-  doneLabel: { fontSize: 11, color: Colors.muted, marginTop: 8, marginBottom: 4 },
+  editBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.primaryBg },
+  editForm: { backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.primaryBorder, gap: 10, marginBottom: 6 },
+  deleteBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.destructiveBg },
+  groupLabel: { fontSize: 12, fontWeight: '700', color: Colors.muted, marginTop: 12, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  emptyState: { alignItems: 'center', paddingVertical: 40 },
+  emptyText: { fontSize: 14, color: Colors.muted },
 });

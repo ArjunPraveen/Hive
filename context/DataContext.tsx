@@ -14,6 +14,7 @@ interface DataContextType {
   toggleTodoStatus: (id: string) => Promise<void>;
   deleteTodo: (id: string) => Promise<void>;
   addEvent: (event: Omit<CalendarEvent, 'id' | 'family_id' | 'created_at'>) => Promise<string | null>;
+  updateEvent: (id: string, updates: Partial<CalendarEvent>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -181,6 +182,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [family?.id]
   );
 
+  const updateEvent = useCallback(async (id: string, updates: Partial<CalendarEvent>) => {
+    const { data, error } = await supabase
+      .from('events')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (data && !error) {
+      setEvents((prev) => prev.map((e) => (e.id === id ? (data as CalendarEvent) : e)));
+    }
+  }, []);
+
   const deleteEvent = useCallback(async (id: string) => {
     let removed: CalendarEvent | undefined;
     setEvents((prev) => {
@@ -243,6 +257,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         toggleTodoStatus,
         deleteTodo,
         addEvent,
+        updateEvent,
         deleteEvent,
         refresh,
       }}>

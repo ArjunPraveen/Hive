@@ -2,24 +2,50 @@ import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
 } from 'react-native';
-import { ArrowLeft, Plus, X, Clock, MapPin, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, Plus, X, Clock, MapPin, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react-native';
 import { router } from 'expo-router';
 
-import Colors from '@/constants/Colors';
+import Colors, { TOP_PADDING } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
+import { confirm } from '@/lib/alert';
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 export default function EventsScreen() {
   const { user, familyMembers } = useAuth();
-  const { events, addEvent } = useData();
+  const { events, addEvent, updateEvent, deleteEvent } = useData();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newTime, setNewTime] = useState('');
   const [newLocation, setNewLocation] = useState('');
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+
+  const startEdit = (event: typeof events[0]) => {
+    setEditingId(event.id);
+    setEditTitle(event.title);
+    setEditTime(event.description || '');
+    setEditLocation(event.location || '');
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editTitle.trim()) return;
+    await updateEvent(editingId, {
+      title: editTitle.trim(),
+      description: editTime.trim() || null,
+      location: editLocation.trim() || null,
+    });
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => setEditingId(null);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -70,6 +96,26 @@ export default function EventsScreen() {
     });
     setNewTitle(''); setNewTime(''); setNewLocation('');
     setShowAdd(false);
+  };
+
+  const getEventEmoji = (title: string) => {
+    const t = title.toLowerCase();
+    if (t.includes('birthday') || t.includes('bday')) return '🎂';
+    if (t.includes('dinner') || t.includes('lunch') || t.includes('food')) return '🍽️';
+    if (t.includes('doctor') || t.includes('dentist') || t.includes('hospital') || t.includes('checkup')) return '🏥';
+    if (t.includes('school') || t.includes('homework') || t.includes('exam') || t.includes('science fair')) return '📚';
+    if (t.includes('soccer') || t.includes('game') || t.includes('sport') || t.includes('gym')) return '⚽';
+    if (t.includes('movie') || t.includes('film')) return '🎬';
+    if (t.includes('travel') || t.includes('trip') || t.includes('vacation') || t.includes('flight')) return '✈️';
+    if (t.includes('wedding') || t.includes('anniversary')) return '💍';
+    if (t.includes('christmas')) return '🎄';
+    if (t.includes('onam') || t.includes('vishu') || t.includes('diwali') || t.includes('deepavali')) return '🪔';
+    if (t.includes('eid') || t.includes('ramzan') || t.includes('bakrid')) return '🌙';
+    if (t.includes('easter') || t.includes('good friday') || t.includes('christmas')) return '⛪';
+    if (t.includes('republic') || t.includes('independence')) return '🇮🇳';
+    if (t.includes('jayanthi') || t.includes('jayanti') || t.includes('samadhi')) return '🙏';
+    if (t.includes('holiday') || t.includes('festival')) return '🎉';
+    return null;
   };
 
   const getMemberColor = (createdBy: string) => {
@@ -193,9 +239,39 @@ export default function EventsScreen() {
           selectedDayEvents.map((event) => {
             const color = getMemberColor(event.created_by);
             const creator = familyMembers.find((m) => m.id === event.created_by);
+
+            if (editingId === event.id) {
+              return (
+                <View key={event.id} style={s.editForm}>
+                  <TextInput value={editTitle} onChangeText={setEditTitle} placeholder="Event title" placeholderTextColor={Colors.muted} style={s.addFormInput} autoFocus />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput value={editTime} onChangeText={setEditTime} placeholder="Time / Description" placeholderTextColor={Colors.muted} style={[s.addFormInput, { flex: 1 }]} />
+                    <TextInput value={editLocation} onChangeText={setEditLocation} placeholder="Location" placeholderTextColor={Colors.muted} style={[s.addFormInput, { flex: 1 }]} />
+                  </View>
+                  <View style={s.editActions}>
+                    <TouchableOpacity onPress={cancelEdit} style={s.editCancelBtn}>
+                      <Text style={s.editCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.editSaveBtn} onPress={saveEdit}>
+                      <Text style={s.editSaveText}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }
+
+            const emoji = getEventEmoji(event.title);
             return (
               <View key={event.id} style={[s.eventCard, { borderLeftColor: color }]}>
-                <Text style={s.eventTitle}>{event.title}</Text>
+                <View style={s.eventCardHeader}>
+                  <Text style={[s.eventTitle, { flex: 1 }]}>{emoji ? `${emoji} ` : ''}{event.title}</Text>
+                  <TouchableOpacity style={s.eventEditBtn} onPress={() => startEdit(event)}>
+                    <Pencil size={12} color={Colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.eventDeleteBtn} onPress={() => confirm('Delete', `Delete "${event.title}"?`, () => deleteEvent(event.id), true)}>
+                    <Trash2 size={12} color={Colors.destructive} />
+                  </TouchableOpacity>
+                </View>
                 <View style={s.eventMeta}>
                   {event.description && (
                     <View style={s.eventMetaItem}>
@@ -227,7 +303,7 @@ export default function EventsScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { paddingBottom: 100, maxWidth: 500, alignSelf: 'center', width: '100%' },
-  header: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 8 },
+  header: { paddingHorizontal: 16, paddingTop: TOP_PADDING, paddingBottom: 8 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   title: { flex: 1, fontSize: 18, fontWeight: '700', color: Colors.foreground },
   headerRight: { alignItems: 'flex-end' },
@@ -254,7 +330,16 @@ const s = StyleSheet.create({
   emptyCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
   emptyText: { fontSize: 14, color: Colors.muted },
   emptyAdd: { fontSize: 14, color: Colors.primary, marginTop: 4 },
+  editForm: { backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.primaryBorder, marginBottom: 8, gap: 8 },
+  editActions: { flexDirection: 'row', gap: 8 },
+  editCancelBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: Colors.surfaceLight },
+  editCancelText: { fontSize: 13, fontWeight: '600', color: Colors.muted },
+  editSaveBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: Colors.primary },
+  editSaveText: { fontSize: 13, fontWeight: '600', color: Colors.background },
   eventCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 3, marginBottom: 8 },
+  eventCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  eventEditBtn: { padding: 6, borderRadius: 8, backgroundColor: Colors.primaryBg },
+  eventDeleteBtn: { padding: 6, borderRadius: 8, backgroundColor: Colors.destructiveBg },
   eventTitle: { fontSize: 14, fontWeight: '600', color: Colors.foreground },
   eventMeta: { flexDirection: 'row', gap: 12, marginTop: 6 },
   eventMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },

@@ -32,4 +32,13 @@ export const Colors = {
   destructiveBg: 'rgba(212, 24, 61, 0.15)',
 };
 
+import { Platform, StatusBar } from 'react-native';
+
+// Safe top padding — accounts for status bar on Android, notch on iOS, minimal on web
+export const TOP_PADDING = Platform.select({
+  android: (StatusBar.currentHeight || 40) + 8,
+  ios: 52,
+  default: 16,
+});
+
 export default Colors;

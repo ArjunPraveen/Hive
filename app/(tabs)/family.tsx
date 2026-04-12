@@ -4,7 +4,7 @@ import { ArrowLeft, Copy, CheckSquare, Flame, Crown, Users, LogOut } from 'lucid
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 
-import Colors from '@/constants/Colors';
+import Colors, { TOP_PADDING } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { showAlert, confirm } from '@/lib/alert';
@@ -171,7 +171,7 @@ export default function FamilyScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { paddingBottom: 100, maxWidth: 500, alignSelf: 'center', width: '100%' },
-  header: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 8 },
+  header: { paddingHorizontal: 16, paddingTop: TOP_PADDING, paddingBottom: 8 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   title: { flex: 1, fontSize: 18, fontWeight: '700', color: Colors.foreground },
   memberCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },

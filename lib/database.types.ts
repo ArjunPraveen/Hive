@@ -62,6 +62,7 @@ export interface Database {
           priority: number;
           status: 'open' | 'in_progress' | 'done';
           label: 'personal' | 'work';
+          location: string | null;
           created_by: string;
           assigned_to: string;
           completed_at: string | null;
@@ -76,6 +77,7 @@ export interface Database {
           priority?: number;
           status?: 'open' | 'in_progress' | 'done';
           label?: 'personal' | 'work';
+          location?: string | null;
           created_by: string;
           assigned_to: string;
           completed_at?: string | null;
@@ -90,6 +92,7 @@ export interface Database {
           priority?: number;
           status?: 'open' | 'in_progress' | 'done';
           label?: 'personal' | 'work';
+          location?: string | null;
           completed_at?: string | null;
           created_at?: string;
         };

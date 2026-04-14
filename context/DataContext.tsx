@@ -90,6 +90,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           priority: todo.priority,
           status: todo.status,
           label: (todo as any).label || 'personal',
+          location: (todo as any).location || null,
           created_by: todo.created_by,
           assigned_to: todo.assigned_to,
         })

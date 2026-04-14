@@ -13,6 +13,7 @@ A family productivity app where everyone stays in sync — shared todos, leaderb
 | 5 | 2026-04-12 | Expanded todo form (priority/deadline/assignee), todos grouped by deadline, edit/delete on todos and events, hex stat cards, Word of the Day via freeapi.me, Kerala holidays seed |
 | 6 | 2026-04-12 | Native date picker (iOS/Android/Web), event emoji icons (birthday/festival/etc), WhatsApp share on task completion, responsive platform-aware padding |
 | 7 | 2026-04-13 | Personal/Work labels on todos, label hex toggle, edit/delete inline, first-name filters, todo validation shake, bee easter egg, bold word in example sentence, WhatsApp group share |
+| 8 | 2026-04-14 | Priority sorting (P0 first), expandable todo detail view, location field on todos, homepage shows today's todos only, completed todos layout fix |
 
 ## Tech Stack
 

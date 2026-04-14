@@ -37,12 +37,19 @@ export default function DashboardScreen() {
       })
       .finally(() => setWordLoading(false));
   }, []);
-  const myOpenTodos = todos.filter((t) => t.status !== 'done' && t.assigned_to === user?.id);
-  const todaysTodos = myOpenTodos;
-
-  // Find next upcoming event day and its events
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
+  const myOpenTodos = todos.filter((t) => t.status !== 'done' && t.assigned_to === user?.id);
+
+  // Today's todos: assigned to user AND (deadline is today, or no deadline)
+  const todaysTodos = myOpenTodos.filter((t) => {
+    if (!t.deadline) return true; // no deadline = show today
+    const d = new Date(t.deadline);
+    return d >= todayStart && d < todayEnd;
+  }).sort((a, b) => a.priority - b.priority);
   const weekEnd = new Date(todayStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
 

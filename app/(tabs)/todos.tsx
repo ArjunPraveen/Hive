@@ -109,12 +109,14 @@ export default function TodosScreen() {
   const { todos, toggleTodoStatus, addTodo, deleteTodo, updateTodo } = useData();
   const [filter, setFilter] = useState('All');
   const [labelFilter, setLabelFilter] = useState<'all' | 'personal' | 'work'>('all');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [newTodoText, setNewTodoText] = useState('');
   const [newPriority, setNewPriority] = useState(2);
   const [newDeadlineDate, setNewDeadlineDate] = useState('');
   const [newAssignee, setNewAssignee] = useState(user?.id || '');
   const [newLabel, setNewLabel] = useState<'personal' | 'work'>('personal');
+  const [newLocation, setNewLocation] = useState('');
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -123,12 +125,14 @@ export default function TodosScreen() {
   const [editDeadline, setEditDeadline] = useState('');
   const [editAssignee, setEditAssignee] = useState('');
   const [editLabel, setEditLabel] = useState<'personal' | 'work'>('personal');
+  const [editLocation, setEditLocation] = useState('');
 
   const startEdit = (todo: typeof todos[0]) => {
     setEditingId(todo.id);
     setEditTitle(todo.title);
     setEditPriority(todo.priority);
     setEditLabel(todo.label || 'personal');
+    setEditLocation(todo.location || '');
     setEditDeadline(todo.deadline ? todo.deadline.split('T')[0] : '');
     setEditAssignee(todo.assigned_to);
   };
@@ -141,6 +145,7 @@ export default function TodosScreen() {
       deadline: editDeadline ? new Date(editDeadline + 'T23:59:59').toISOString() : null,
       assigned_to: editAssignee,
       label: editLabel,
+      location: editLocation.trim() || null,
     });
     setEditingId(null);
   };
@@ -196,6 +201,7 @@ export default function TodosScreen() {
       title: newTodoText.trim(),
       description: null,
       deadline: newDeadlineDate ? new Date(newDeadlineDate + 'T23:59:59').toISOString() : null,
+      location: newLocation.trim() || null,
       priority: newPriority,
       status: 'open',
       label: newLabel,
@@ -208,6 +214,7 @@ export default function TodosScreen() {
       setNewTodoText('');
       setNewPriority(2);
       setNewLabel('personal');
+      setNewLocation('');
       setNewDeadlineDate('');
       setNewAssignee(user.id);
       setShowAdd(false);
@@ -218,8 +225,10 @@ export default function TodosScreen() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const overdueTodos = activeTodos.filter((t) => t.deadline && new Date(t.deadline) < todayStart);
-  const noDeadlineTodos = activeTodos.filter((t) => !t.deadline);
+  const byPriority = (a: typeof todos[0], b: typeof todos[0]) => a.priority - b.priority;
+
+  const overdueTodos = activeTodos.filter((t) => t.deadline && new Date(t.deadline) < todayStart).sort(byPriority);
+  const noDeadlineTodos = activeTodos.filter((t) => !t.deadline).sort(byPriority);
   const withDeadlineTodos = activeTodos.filter((t) => t.deadline && new Date(t.deadline) >= todayStart);
 
   // Group by deadline date
@@ -237,7 +246,7 @@ export default function TodosScreen() {
     .forEach(([key, todos]) => {
       const d = new Date(key + 'T00:00:00');
       const label = d.toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
-      deadlineGroups.push({ date: key, label: `Complete by ${label}`, todos });
+      deadlineGroups.push({ date: key, label: `Complete by ${label}`, todos: todos.sort(byPriority) });
     });
 
   const handleToggle = async (todoId: string) => {
@@ -304,6 +313,16 @@ export default function TodosScreen() {
             <DatePickerField value={editDeadline} onChange={setEditDeadline} />
           </View>
           <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Location (optional)</Text>
+            <TextInput
+              value={editLocation}
+              onChangeText={setEditLocation}
+              placeholder="e.g., Office, Home, Mall..."
+              placeholderTextColor={Colors.muted}
+              style={s.addFormTitle}
+            />
+          </View>
+          <View style={s.addFormRow}>
             <Text style={s.addFormLabel}>Assign to</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={s.addFormChips}>
               {familyMembers.map((m) => {
@@ -330,38 +349,70 @@ export default function TodosScreen() {
       );
     }
 
+    const isExpanded = expandedId === todo.id;
+    const priorityColor = [Colors.p0, Colors.p1, Colors.p2, Colors.p3][todo.priority];
+
     return (
-      <View key={todo.id} style={[s.todoCard, isOverdue && { borderLeftWidth: 3, borderLeftColor: Colors.destructive }]}>
-        <TouchableOpacity style={s.checkbox} onPress={() => handleToggle(todo.id)}>
-          <View style={s.checkboxInner} />
-        </TouchableOpacity>
-        <View style={[s.todoEmoji, { backgroundColor: color + '25' }]}>
-          <Text style={{ fontSize: 12 }}>{getMemberEmoji(member)}</Text>
-        </View>
-        <View style={s.todoText}>
-          <Text style={s.todoTitle} numberOfLines={1}>{todo.title}</Text>
-          <View style={s.todoMeta}>
-            <Text style={s.todoAssignee}>{member?.display_name.split(' ')[0] || 'Unknown'}</Text>
-            <View style={[s.priorityBadge, { backgroundColor: [Colors.p0, Colors.p1, Colors.p2, Colors.p3][todo.priority] + '20' }]}>
-              <Text style={[s.priorityText, { color: [Colors.p0, Colors.p1, Colors.p2, Colors.p3][todo.priority] }]}>P{todo.priority}</Text>
-            </View>
-            <View style={[s.labelBadge, { backgroundColor: todo.label === 'work' ? '#3498db20' : '#9b59b620' }]}>
-              <Text style={[s.labelText, { color: todo.label === 'work' ? '#3498db' : '#9b59b6' }]}>{todo.label === 'work' ? 'Work' : 'Personal'}</Text>
+      <TouchableOpacity
+        key={todo.id}
+        activeOpacity={0.8}
+        onPress={() => setExpandedId(isExpanded ? null : todo.id)}
+        style={[s.todoCard, isOverdue && { borderLeftWidth: 3, borderLeftColor: Colors.destructive }]}>
+        {/* Top row — always visible */}
+        <View style={s.todoTopRow}>
+          <TouchableOpacity style={s.checkbox} onPress={() => handleToggle(todo.id)}>
+            <View style={s.checkboxInner} />
+          </TouchableOpacity>
+          <View style={[s.todoEmoji, { backgroundColor: color + '25' }]}>
+            <Text style={{ fontSize: 12 }}>{getMemberEmoji(member)}</Text>
+          </View>
+          <View style={s.todoText}>
+            <Text style={s.todoTitle} numberOfLines={isExpanded ? undefined : 1}>{todo.title}</Text>
+            <View style={s.todoMeta}>
+              <Text style={s.todoAssignee}>{member?.display_name.split(' ')[0] || 'Unknown'}</Text>
+              <View style={[s.priorityBadge, { backgroundColor: priorityColor + '20' }]}>
+                <Text style={[s.priorityText, { color: priorityColor }]}>P{todo.priority}</Text>
+              </View>
+              <View style={[s.labelBadge, { backgroundColor: todo.label === 'work' ? '#3498db20' : '#9b59b620' }]}>
+                <Text style={[s.labelText, { color: todo.label === 'work' ? '#3498db' : '#9b59b6' }]}>{todo.label === 'work' ? 'Work' : 'Personal'}</Text>
+              </View>
             </View>
           </View>
-        </View>
-        {todo.assigned_to !== user?.id && (
-          <TouchableOpacity style={s.nudgeBtn} onPress={() => handleNudge(todo.id)}>
-            <MessageCircle size={15} color="#25D366" />
+          {todo.assigned_to !== user?.id && (
+            <TouchableOpacity style={s.nudgeBtn} onPress={() => handleNudge(todo.id)}>
+              <MessageCircle size={14} color="#25D366" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={s.editBtn} onPress={() => startEdit(todo)}>
+            <Pencil size={14} color={Colors.primary} />
           </TouchableOpacity>
+          <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
+            <Trash2 size={14} color={Colors.destructive} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Expanded detail — text/details only */}
+        {isExpanded && (
+          <View style={s.expandedDetail}>
+            {todo.description && <Text style={s.expandedDesc}>{todo.description}</Text>}
+            <View style={s.expandedRow}>
+              {todo.deadline && (
+                <View style={s.expandedChip}>
+                  <Text style={[s.expandedChipText, isOverdue && { color: Colors.destructive }]}>
+                    {isOverdue ? '⚠️ ' : '📅 '}
+                    {new Date(todo.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                </View>
+              )}
+              {todo.location && (
+                <View style={s.expandedChip}>
+                  <Text style={s.expandedChipText}>📍 {todo.location}</Text>
+                </View>
+              )}
+            </View>
+          </View>
         )}
-        <TouchableOpacity style={s.editBtn} onPress={() => startEdit(todo)}>
-          <Pencil size={14} color={Colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
-          <Trash2 size={14} color={Colors.destructive} />
-        </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -472,6 +523,18 @@ export default function TodosScreen() {
             <DatePickerField value={newDeadlineDate} onChange={setNewDeadlineDate} />
           </View>
 
+          {/* Location */}
+          <View style={s.addFormRow}>
+            <Text style={s.addFormLabel}>Location (optional)</Text>
+            <TextInput
+              value={newLocation}
+              onChangeText={setNewLocation}
+              placeholder="e.g., Office, Home, Mall..."
+              placeholderTextColor={Colors.muted}
+              style={s.addFormTitle}
+            />
+          </View>
+
           {/* Assignee */}
           <View style={s.addFormRow}>
             <Text style={s.addFormLabel}>Assign to</Text>
@@ -537,16 +600,18 @@ export default function TodosScreen() {
             <Text style={s.groupLabel}>Completed ({doneTodos.length})</Text>
             {doneTodos.map((todo) => (
               <View key={todo.id} style={[s.todoCard, { opacity: 0.4 }]}>
-                <TouchableOpacity style={s.checkboxDone} onPress={() => handleToggle(todo.id)}>
-                  <Check size={12} color={Colors.background} />
-                </TouchableOpacity>
-                <View style={s.todoText}>
-                  <Text style={[s.todoTitle, s.todoTitleDone]} numberOfLines={1}>{todo.title}</Text>
-                  <Text style={s.todoAssignee}>{getMember(todo.assigned_to)?.display_name.split(' ')[0] || 'Unknown'}</Text>
+                <View style={s.todoTopRow}>
+                  <TouchableOpacity style={s.checkboxDone} onPress={() => handleToggle(todo.id)}>
+                    <Check size={12} color={Colors.background} />
+                  </TouchableOpacity>
+                  <View style={s.todoText}>
+                    <Text style={[s.todoTitle, s.todoTitleDone]} numberOfLines={1}>{todo.title}</Text>
+                    <Text style={s.todoAssignee}>{getMember(todo.assigned_to)?.display_name.split(' ')[0] || 'Unknown'}</Text>
+                  </View>
+                  <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
+                    <Trash2 size={14} color={Colors.destructive} />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
-                  <Trash2 size={14} color={Colors.destructive} />
-                </TouchableOpacity>
               </View>
             ))}
           </>
@@ -599,7 +664,8 @@ const s = StyleSheet.create({
   submitText: { fontSize: 13, fontWeight: '600', color: Colors.background },
   todoList: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingBottom: 100, gap: 8 },
-  todoCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },
+  todoCard: { backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },
+  todoTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: Colors.muted, alignItems: 'center', justifyContent: 'center' },
   checkboxInner: {},
   checkboxDone: { width: 20, height: 20, borderRadius: 6, backgroundColor: Colors.primary, borderWidth: 2, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
@@ -614,6 +680,11 @@ const s = StyleSheet.create({
   labelBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
   labelText: { fontSize: 9 },
   todoDueDate: { fontSize: 10, color: Colors.muted },
+  expandedDetail: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
+  expandedDesc: { fontSize: 13, color: Colors.muted, lineHeight: 18 },
+  expandedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  expandedChip: { backgroundColor: Colors.surfaceLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  expandedChipText: { fontSize: 11, color: Colors.muted },
   nudgeBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.successBg },
   editBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.primaryBg },
   editForm: { backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.primaryBorder, gap: 10, marginBottom: 6 },

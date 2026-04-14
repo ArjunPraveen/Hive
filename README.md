@@ -2,6 +2,8 @@
 
 A family productivity app where everyone stays in sync — shared todos, leaderboard, calendar, and more. Built with Expo (React Native) + Supabase.
 
+**Live:** [hive-8he.pages.dev](https://hive-8he.pages.dev/)
+
 ## Iterations
 
 | # | Date | Summary |

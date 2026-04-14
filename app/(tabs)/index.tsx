@@ -7,6 +7,7 @@ import Colors, { TOP_PADDING, USE_NATIVE_DRIVER } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { HexCard } from '@/components/ui/HexIcon';
+import { HiveLoader } from '@/components/ui/HiveLoader';
 
 interface WordOfDay {
   word: string;
@@ -86,36 +87,51 @@ export default function DashboardScreen() {
   // Easter egg: bee flies to wherever user taps
   const beeX = useRef(new Animated.Value(0)).current;
   const beeY = useRef(new Animated.Value(0)).current;
-  const beeHomeX = useRef(0);
-  const beeHomeY = useRef(0);
+  const beeViewRef = useRef<View>(null);
+  const beeFlying = useRef(false);
 
-  const onBeeHome = (e: any) => {
-    // Measure bee's position relative to the page
-    e.target?.measureInWindow?.((x: number, y: number) => {
-      beeHomeX.current = x;
-      beeHomeY.current = y;
+  const handleScreenTap = (e: GestureResponderEvent) => {
+    if (beeFlying.current) return;
+    const { pageX, pageY } = e.nativeEvent;
+
+    // Measure bee's current absolute position at tap time
+    if (!beeViewRef.current) return;
+    beeViewRef.current.measureInWindow((bx, by) => {
+      const dx = pageX - (bx || 0) - 10;
+      const dy = pageY - (by || 0) - 10;
+      flyBee(dx, dy);
     });
   };
 
-  const handleScreenTap = (e: GestureResponderEvent) => {
-    const { pageX, pageY } = e.nativeEvent;
-    const dx = pageX - beeHomeX.current - 10;
-    const dy = pageY - beeHomeY.current - 10;
+  const flyBee = (dx: number, dy: number) => {
+    beeFlying.current = true;
+
+    // Random arc height — bee flies up first then swoops down to target
+    const arcHeight = -(80 + Math.random() * 120); // negative = upward
+    const midX = dx * (0.3 + Math.random() * 0.4); // random midpoint along X
 
     Animated.sequence([
-      // Fly to tap
+      // Arc to target: X smooth, Y goes up then down
       Animated.parallel([
-        Animated.timing(beeX, { toValue: dx, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
-        Animated.timing(beeY, { toValue: dy, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(beeX, { toValue: midX, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(beeY, { toValue: arcHeight, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
       ]),
-      // Pause
-      Animated.delay(800),
-      // Fly back
       Animated.parallel([
-        Animated.timing(beeX, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
-        Animated.timing(beeY, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(beeX, { toValue: dx, duration: 500, easing: Easing.in(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(beeY, { toValue: dy, duration: 500, easing: Easing.in(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
       ]),
-    ]).start();
+      // Pause at target
+      Animated.delay(600),
+      // Fly back with a different arc
+      Animated.parallel([
+        Animated.timing(beeX, { toValue: dx * 0.3, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(beeY, { toValue: -(40 + Math.random() * 60), duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+      ]),
+      Animated.parallel([
+        Animated.timing(beeX, { toValue: 0, duration: 500, easing: Easing.in(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+        Animated.timing(beeY, { toValue: 0, duration: 500, easing: Easing.in(Easing.quad), useNativeDriver: USE_NATIVE_DRIVER }),
+      ]),
+    ]).start(() => { beeFlying.current = false; });
   };
 
   return (
@@ -130,11 +146,12 @@ export default function DashboardScreen() {
           <Text style={s.greeting}>Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}</Text>
           <View style={s.familyRow}>
             <Text style={s.familyName}>{family?.name || 'Hive'}</Text>
-            <Animated.Text
-              onLayout={onBeeHome}
-              style={[s.beeEmoji, { transform: [{ translateX: beeX }, { translateY: beeY }] }]}>
-              🐝
-            </Animated.Text>
+            <View ref={beeViewRef} collapsable={false}>
+              <Animated.Text
+                style={[s.beeEmoji, { transform: [{ translateX: beeX }, { translateY: beeY }] }]}>
+                🐝
+              </Animated.Text>
+            </View>
           </View>
         </View>
         <TouchableOpacity style={s.bellBtn}>
@@ -188,7 +205,7 @@ export default function DashboardScreen() {
           <Text style={s.wordLabel}>WORD OF THE DAY</Text>
         </View>
         {wordLoading ? (
-          <ActivityIndicator color={Colors.primary} style={{ paddingVertical: 12 }} />
+          <HiveLoader size={32} showLabel={false} />
         ) : word ? (
           <>
             <View style={s.wordTitleRow}>

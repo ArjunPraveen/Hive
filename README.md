@@ -14,6 +14,7 @@ A family productivity app where everyone stays in sync — shared todos, leaderb
 | 6 | 2026-04-12 | Native date picker (iOS/Android/Web), event emoji icons (birthday/festival/etc), WhatsApp share on task completion, responsive platform-aware padding |
 | 7 | 2026-04-13 | Personal/Work labels on todos, label hex toggle, edit/delete inline, first-name filters, todo validation shake, bee easter egg, bold word in example sentence, WhatsApp group share |
 | 8 | 2026-04-14 | Priority sorting (P0 first), expandable todo detail view, location field on todos, homepage shows today's todos only, completed todos layout fix |
+| 9 | 2026-04-15 | HiveLoader (hex spinner with bee), parabolic bee flight path, accurate bee positioning via measureInWindow |
 
 ## Tech Stack
 

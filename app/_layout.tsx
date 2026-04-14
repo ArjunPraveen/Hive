@@ -2,12 +2,13 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
 import Colors from '@/constants/Colors';
+import { HiveLoader } from '@/components/ui/HiveLoader';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -60,7 +61,7 @@ function RootLayoutNav() {
   if (initialLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <HiveLoader />
       </View>
     );
   }

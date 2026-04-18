@@ -17,6 +17,7 @@ A family productivity app where everyone stays in sync — shared todos, leaderb
 | 7 | 2026-04-13 | Personal/Work labels on todos, label hex toggle, edit/delete inline, first-name filters, todo validation shake, bee easter egg, bold word in example sentence, WhatsApp group share |
 | 8 | 2026-04-14 | Priority sorting (P0 first), expandable todo detail view, location field on todos, homepage shows today's todos only, completed todos layout fix |
 | 9 | 2026-04-15 | HiveLoader (hex spinner with bee), parabolic bee flight path, accurate bee positioning via measureInWindow |
+| 10 | 2026-04-16 | Multi-assign todos — tap multiple assignees, each gets an independent copy. In "All" view, shared todos group into one card with stacked avatars and per-member completion status. Group edit updates all copies. |
 
 ## Tech Stack
 

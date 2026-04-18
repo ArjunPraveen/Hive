@@ -114,7 +114,7 @@ export default function TodosScreen() {
   const [newTodoText, setNewTodoText] = useState('');
   const [newPriority, setNewPriority] = useState(2);
   const [newDeadlineDate, setNewDeadlineDate] = useState('');
-  const [newAssignee, setNewAssignee] = useState(user?.id || '');
+  const [newAssignees, setNewAssignees] = useState<string[]>(user?.id ? [user.id] : []);
   const [newLabel, setNewLabel] = useState<'personal' | 'work'>('personal');
   const [newLocation, setNewLocation] = useState('');
 
@@ -139,14 +139,35 @@ export default function TodosScreen() {
 
   const saveEdit = async () => {
     if (!editingId || !editTitle.trim()) return;
-    await updateTodo(editingId, {
+    const original = todos.find((t) => t.id === editingId);
+    if (!original) return;
+
+    // If this todo is part of a group, update all group members (except assignee)
+    const groupTodos = todos.filter((t) => {
+      const createdMin = (t.created_at || '').substring(0, 16);
+      const origMin = (original.created_at || '').substring(0, 16);
+      return t.title === original.title
+        && t.created_by === original.created_by
+        && (t.deadline || '') === (original.deadline || '')
+        && createdMin === origMin;
+    });
+
+    const sharedUpdates = {
       title: editTitle.trim(),
       priority: editPriority,
       deadline: editDeadline ? new Date(editDeadline + 'T23:59:59').toISOString() : null,
-      assigned_to: editAssignee,
       label: editLabel,
       location: editLocation.trim() || null,
-    });
+    };
+
+    if (groupTodos.length > 1) {
+      // Edit the whole group — share title/deadline/priority/label/location, but assignee only for the edited todo
+      await Promise.all(groupTodos.map((t) =>
+        updateTodo(t.id, t.id === editingId ? { ...sharedUpdates, assigned_to: editAssignee } : sharedUpdates)
+      ));
+    } else {
+      await updateTodo(editingId, { ...sharedUpdates, assigned_to: editAssignee });
+    }
     setEditingId(null);
   };
 
@@ -166,9 +187,28 @@ export default function TodosScreen() {
     return true;
   });
 
+  // Group signature: todos sharing same title + creator + deadline + created_at (minute precision)
+  // are treated as one multi-assigned group when viewing "All"
+  const groupKey = (t: typeof todos[0]) => {
+    const createdMin = t.created_at ? t.created_at.substring(0, 16) : '';
+    return `${t.title}|${t.created_by}|${t.deadline || ''}|${createdMin}`;
+  };
+
+  // Build grouped view only for "All" filter. Specific person filter shows individual todos.
+  type TodoGroup = { key: string; primary: typeof todos[0]; members: typeof todos };
+  const buildGroups = (list: typeof todos): TodoGroup[] => {
+    const map = new Map<string, typeof todos>();
+    list.forEach((t) => {
+      const k = groupKey(t);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(t);
+    });
+    return Array.from(map.entries()).map(([key, members]) => ({ key, primary: members[0], members }));
+  };
+
   const activeTodos = filteredTodos.filter((t) => t.status !== 'done');
   const doneTodos = filteredTodos.filter((t) => t.status === 'done');
-  const remaining = filteredTodos.filter((t) => t.status !== 'done').length;
+  const remaining = activeTodos.length;
   const total = filteredTodos.length;
   const progress = total > 0 ? ((total - remaining) / total) * 100 : 0;
 
@@ -197,26 +237,31 @@ export default function TodosScreen() {
   const handleAdd = async () => {
     if (!newTodoText.trim()) { triggerShake(); return; }
     if (!user) return;
-    const err = await addTodo({
+    const assignees = newAssignees.length > 0 ? newAssignees : [user.id];
+    // Create one todo per assignee — group is detected by matching title+creator+deadline+created_at
+    const baseTodo = {
       title: newTodoText.trim(),
       description: null,
       deadline: newDeadlineDate ? new Date(newDeadlineDate + 'T23:59:59').toISOString() : null,
       location: newLocation.trim() || null,
       priority: newPriority,
-      status: 'open',
+      status: 'open' as const,
       label: newLabel,
       created_by: user.id,
-      assigned_to: newAssignee || user.id,
-    });
-    if (err) {
-      showAlert('Error', err);
+    };
+    const results = await Promise.all(
+      assignees.map((assigneeId) => addTodo({ ...baseTodo, assigned_to: assigneeId }))
+    );
+    const firstErr = results.find((r) => r);
+    if (firstErr) {
+      showAlert('Error', firstErr);
     } else {
       setNewTodoText('');
       setNewPriority(2);
       setNewLabel('personal');
       setNewLocation('');
       setNewDeadlineDate('');
-      setNewAssignee(user.id);
+      setNewAssignees([user.id]);
       setShowAdd(false);
     }
   };
@@ -275,7 +320,9 @@ export default function TodosScreen() {
     Linking.openURL(`https://wa.me/?text=${msg}`);
   };
 
-  const renderTodoItem = (todo: typeof todos[0]) => {
+  const renderTodoItem = (todo: typeof todos[0], group?: typeof todos) => {
+    const isGroup = !!group && group.length > 1;
+    const groupAssignees = isGroup ? group.map((t) => t.assigned_to) : [];
     const member = getMember(todo.assigned_to);
     const color = getMemberColor(todo.assigned_to);
     const isOverdue = todo.deadline && new Date(todo.deadline) < todayStart;
@@ -360,16 +407,48 @@ export default function TodosScreen() {
         style={[s.todoCard, isOverdue && { borderLeftWidth: 3, borderLeftColor: Colors.destructive }]}>
         {/* Top row — always visible */}
         <View style={s.todoTopRow}>
-          <TouchableOpacity style={s.checkbox} onPress={() => handleToggle(todo.id)}>
-            <View style={s.checkboxInner} />
-          </TouchableOpacity>
-          <View style={[s.todoEmoji, { backgroundColor: color + '25' }]}>
-            <Text style={{ fontSize: 12 }}>{getMemberEmoji(member)}</Text>
-          </View>
+          {/* Checkbox: toggles current user's own todo if in group, else the todo itself */}
+          {(() => {
+            const myTodo = isGroup ? group!.find((t) => t.assigned_to === user?.id) : todo;
+            const isDone = myTodo?.status === 'done';
+            return (
+              <TouchableOpacity style={isDone ? s.checkboxDone : s.checkbox} onPress={() => myTodo && handleToggle(myTodo.id)} disabled={!myTodo}>
+                {isDone ? <Check size={12} color={Colors.background} /> : <View style={s.checkboxInner} />}
+              </TouchableOpacity>
+            );
+          })()}
+
+          {isGroup ? (
+            <View style={s.avatarStack}>
+              {groupAssignees.slice(0, 3).map((aid, i) => {
+                const m = getMember(aid);
+                const c = getMemberColor(aid);
+                const isDoneForMember = group!.find((t) => t.assigned_to === aid)?.status === 'done';
+                return (
+                  <View key={aid} style={[s.stackedAvatar, { backgroundColor: c + '25', borderColor: c, marginLeft: i === 0 ? 0 : -10, opacity: isDoneForMember ? 0.4 : 1 }]}>
+                    <Text style={{ fontSize: 12 }}>{getMemberEmoji(m)}</Text>
+                  </View>
+                );
+              })}
+              {groupAssignees.length > 3 && (
+                <View style={[s.stackedAvatar, { backgroundColor: Colors.surfaceLight, borderColor: Colors.border, marginLeft: -10 }]}>
+                  <Text style={{ fontSize: 9, color: Colors.muted, fontWeight: '700' }}>+{groupAssignees.length - 3}</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={[s.todoEmoji, { backgroundColor: color + '25' }]}>
+              <Text style={{ fontSize: 12 }}>{getMemberEmoji(member)}</Text>
+            </View>
+          )}
           <View style={s.todoText}>
             <Text style={s.todoTitle} numberOfLines={isExpanded ? undefined : 1}>{todo.title}</Text>
             <View style={s.todoMeta}>
-              <Text style={s.todoAssignee}>{member?.display_name.split(' ')[0] || 'Unknown'}</Text>
+              <Text style={s.todoAssignee}>
+                {isGroup
+                  ? groupAssignees.map((id) => getMember(id)?.display_name.split(' ')[0] || '?').slice(0, 2).join(', ') + (groupAssignees.length > 2 ? ` +${groupAssignees.length - 2}` : '')
+                  : member?.display_name.split(' ')[0] || 'Unknown'}
+              </Text>
               <View style={[s.priorityBadge, { backgroundColor: priorityColor + '20' }]}>
                 <Text style={[s.priorityText, { color: priorityColor }]}>P{todo.priority}</Text>
               </View>
@@ -378,7 +457,7 @@ export default function TodosScreen() {
               </View>
             </View>
           </View>
-          {todo.assigned_to !== user?.id && (
+          {!isGroup && todo.assigned_to !== user?.id && (
             <TouchableOpacity style={s.nudgeBtn} onPress={() => handleNudge(todo.id)}>
               <MessageCircle size={14} color="#25D366" />
             </TouchableOpacity>
@@ -386,12 +465,21 @@ export default function TodosScreen() {
           <TouchableOpacity style={s.editBtn} onPress={() => startEdit(todo)}>
             <Pencil size={14} color={Colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
+          <TouchableOpacity style={s.deleteBtn} onPress={() => {
+            const msg = isGroup ? `Delete this task for all ${group!.length} assignees?` : `Delete "${todo.title}"?`;
+            confirm('Delete', msg, () => {
+              if (isGroup) {
+                group!.forEach((t) => deleteTodo(t.id));
+              } else {
+                deleteTodo(todo.id);
+              }
+            }, true);
+          }}>
             <Trash2 size={14} color={Colors.destructive} />
           </TouchableOpacity>
         </View>
 
-        {/* Expanded detail — text/details only */}
+        {/* Expanded detail */}
         {isExpanded && (
           <View style={s.expandedDetail}>
             {todo.description && <Text style={s.expandedDesc}>{todo.description}</Text>}
@@ -410,6 +498,28 @@ export default function TodosScreen() {
                 </View>
               )}
             </View>
+            {isGroup && (
+              <View style={s.groupStatusList}>
+                {group!.map((gt) => {
+                  const m = getMember(gt.assigned_to);
+                  const c = getMemberColor(gt.assigned_to);
+                  const isDoneForMember = gt.status === 'done';
+                  return (
+                    <View key={gt.id} style={s.groupStatusRow}>
+                      <View style={[s.groupStatusAvatar, { backgroundColor: c + '25', borderColor: c }]}>
+                        <Text style={{ fontSize: 11 }}>{getMemberEmoji(m)}</Text>
+                      </View>
+                      <Text style={[s.groupStatusName, isDoneForMember && { textDecorationLine: 'line-through', opacity: 0.5 }]}>
+                        {m?.display_name.split(' ')[0] || 'Unknown'}
+                      </Text>
+                      <Text style={[s.groupStatusBadge, { color: isDoneForMember ? Colors.success : Colors.muted }]}>
+                        {isDoneForMember ? '✓ Done' : '• Open'}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
       </TouchableOpacity>
@@ -535,17 +645,21 @@ export default function TodosScreen() {
             />
           </View>
 
-          {/* Assignee */}
+          {/* Assignees — multi-select */}
           <View style={s.addFormRow}>
-            <Text style={s.addFormLabel}>Assign to</Text>
+            <Text style={s.addFormLabel}>Assign to (tap to toggle)</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={s.addFormChips}>
               {familyMembers.map((m) => {
                 const color = getMemberColor(m.id);
-                const selected = newAssignee === m.id;
+                const selected = newAssignees.includes(m.id);
                 return (
                   <TouchableOpacity
                     key={m.id}
-                    onPress={() => setNewAssignee(m.id)}
+                    onPress={() => {
+                      setNewAssignees((prev) =>
+                        prev.includes(m.id) ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                      );
+                    }}
                     style={[s.assignChip, selected && { backgroundColor: color + '20', borderColor: color }]}>
                     <Text style={{ fontSize: 12 }}>{getMemberEmoji(m)}</Text>
                     <Text style={[s.chipText, selected && { color }]}>{m.display_name.split(' ')[0]}</Text>
@@ -574,7 +688,9 @@ export default function TodosScreen() {
         {overdueTodos.length > 0 && (
           <>
             <Text style={[s.groupLabel, { color: Colors.destructive }]}>Overdue</Text>
-            {overdueTodos.map((todo) => renderTodoItem(todo))}
+            {(filter === 'All' ? buildGroups(overdueTodos) : overdueTodos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
+              <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
+            ))}
           </>
         )}
 
@@ -582,7 +698,9 @@ export default function TodosScreen() {
         {deadlineGroups.map((group) => (
           <View key={group.date}>
             <Text style={s.groupLabel}>{group.label}</Text>
-            {group.todos.map((todo) => renderTodoItem(todo))}
+            {(filter === 'All' ? buildGroups(group.todos) : group.todos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
+              <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
+            ))}
           </View>
         ))}
 
@@ -590,7 +708,9 @@ export default function TodosScreen() {
         {noDeadlineTodos.length > 0 && (
           <>
             <Text style={s.groupLabel}>No deadline</Text>
-            {noDeadlineTodos.map((todo) => renderTodoItem(todo))}
+            {(filter === 'All' ? buildGroups(noDeadlineTodos) : noDeadlineTodos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
+              <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
+            ))}
           </>
         )}
 
@@ -684,6 +804,13 @@ const s = StyleSheet.create({
   expandedDesc: { fontSize: 13, color: Colors.muted, lineHeight: 18 },
   expandedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   expandedChip: { backgroundColor: Colors.surfaceLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  avatarStack: { flexDirection: 'row', alignItems: 'center' },
+  stackedAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  groupStatusList: { marginTop: 8, gap: 6 },
+  groupStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  groupStatusAvatar: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  groupStatusName: { flex: 1, fontSize: 13, color: Colors.foreground },
+  groupStatusBadge: { fontSize: 11, fontWeight: '600' },
   expandedChipText: { fontSize: 11, color: Colors.muted },
   nudgeBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.successBg },
   editBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.primaryBg },

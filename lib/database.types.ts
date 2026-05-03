@@ -128,6 +128,72 @@ export interface Database {
           created_at?: string;
         };
       };
+      habits: {
+        Row: {
+          id: string;
+          family_id: string;
+          title: string;
+          category: string;
+          frequency_type: 'daily' | 'weekly' | 'custom';
+          frequency_count: number;
+          custom_days: number[] | null;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          family_id: string;
+          title: string;
+          category?: string;
+          frequency_type: 'daily' | 'weekly' | 'custom';
+          frequency_count?: number;
+          custom_days?: number[] | null;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          category?: string;
+          frequency_type?: 'daily' | 'weekly' | 'custom';
+          frequency_count?: number;
+          custom_days?: number[] | null;
+        };
+      };
+      habit_assignees: {
+        Row: {
+          habit_id: string;
+          user_id: string;
+        };
+        Insert: {
+          habit_id: string;
+          user_id: string;
+        };
+        Update: {
+          habit_id?: string;
+          user_id?: string;
+        };
+      };
+      habit_checkins: {
+        Row: {
+          id: string;
+          habit_id: string;
+          user_id: string;
+          checked_date: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          habit_id: string;
+          user_id: string;
+          checked_date: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          checked_date?: string;
+        };
+      };
     };
   };
 }
@@ -137,6 +203,10 @@ export type Family = Database['public']['Tables']['families']['Row'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Todo = Database['public']['Tables']['todos']['Row'];
 export type CalendarEvent = Database['public']['Tables']['events']['Row'];
+export type Habit = Database['public']['Tables']['habits']['Row'];
+export type HabitAssignee = Database['public']['Tables']['habit_assignees']['Row'];
+export type HabitCheckin = Database['public']['Tables']['habit_checkins']['Row'];
 
 export type TodoStatus = 'open' | 'in_progress' | 'done';
 export type Priority = 0 | 1 | 2 | 3;
+export type FrequencyType = 'daily' | 'weekly' | 'custom';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, CheckSquare, Calendar, Users } from 'lucide-react-native';
+import { Home, CheckSquare, Calendar, Users, Repeat } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 
 export default function TabLayout() {
@@ -48,6 +48,15 @@ export default function TabLayout() {
           title: 'Todos',
           tabBarIcon: ({ color, focused }) => (
             <CheckSquare size={20} color={color} strokeWidth={focused ? 2.5 : 1.5} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="habits"
+        options={{
+          title: 'Habits',
+          tabBarIcon: ({ color, focused }) => (
+            <Repeat size={20} color={color} strokeWidth={focused ? 2.5 : 1.5} />
           ),
         }}
       />

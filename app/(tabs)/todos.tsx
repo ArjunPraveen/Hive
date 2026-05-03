@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Linking, Platform, Animated,
 } from 'react-native';
-import { ArrowLeft, Plus, Check, MessageCircle, Trash2, Pencil, X, CalendarDays, Share2 } from 'lucide-react-native';
+import { ArrowLeft, Plus, Check, MessageCircle, Trash2, Pencil, X, CalendarDays, Share2, ChevronDown, ChevronRight } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 
@@ -110,6 +110,12 @@ export default function TodosScreen() {
   const [filter, setFilter] = useState('All');
   const [labelFilter, setLabelFilter] = useState<'all' | 'personal' | 'work'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['completed']));
+  const toggleSection = (key: string) => setCollapsedSections((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
   const [showAdd, setShowAdd] = useState(false);
   const [newTodoText, setNewTodoText] = useState('');
   const [newPriority, setNewPriority] = useState(2);
@@ -685,57 +691,82 @@ export default function TodosScreen() {
       {/* Todo list */}
       <ScrollView style={s.todoList} contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
         {/* Overdue */}
-        {overdueTodos.length > 0 && (
-          <>
-            <Text style={[s.groupLabel, { color: Colors.destructive }]}>Overdue</Text>
-            {(filter === 'All' ? buildGroups(overdueTodos) : overdueTodos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
-              <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
-            ))}
-          </>
-        )}
+        {overdueTodos.length > 0 && (() => {
+          const collapsed = collapsedSections.has('overdue');
+          return (
+            <>
+              <TouchableOpacity onPress={() => toggleSection('overdue')} style={s.sectionHeader}>
+                {collapsed ? <ChevronRight size={14} color={Colors.destructive} /> : <ChevronDown size={14} color={Colors.destructive} />}
+                <Text style={[s.groupLabel, { color: Colors.destructive, marginTop: 0, marginBottom: 0 }]}>Overdue ({overdueTodos.length})</Text>
+              </TouchableOpacity>
+              {!collapsed && (filter === 'All' ? buildGroups(overdueTodos) : overdueTodos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
+                <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
+              ))}
+            </>
+          );
+        })()}
 
         {/* Grouped by deadline */}
-        {deadlineGroups.map((group) => (
-          <View key={group.date}>
-            <Text style={s.groupLabel}>{group.label}</Text>
-            {(filter === 'All' ? buildGroups(group.todos) : group.todos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
-              <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
-            ))}
-          </View>
-        ))}
+        {deadlineGroups.map((group) => {
+          const sectionKey = `deadline-${group.date}`;
+          const collapsed = collapsedSections.has(sectionKey);
+          return (
+            <View key={group.date}>
+              <TouchableOpacity onPress={() => toggleSection(sectionKey)} style={s.sectionHeader}>
+                {collapsed ? <ChevronRight size={14} color={Colors.muted} /> : <ChevronDown size={14} color={Colors.muted} />}
+                <Text style={[s.groupLabel, { marginTop: 0, marginBottom: 0 }]}>{group.label} ({group.todos.length})</Text>
+              </TouchableOpacity>
+              {!collapsed && (filter === 'All' ? buildGroups(group.todos) : group.todos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
+                <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
+              ))}
+            </View>
+          );
+        })}
 
         {/* No deadline */}
-        {noDeadlineTodos.length > 0 && (
-          <>
-            <Text style={s.groupLabel}>No deadline</Text>
-            {(filter === 'All' ? buildGroups(noDeadlineTodos) : noDeadlineTodos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
-              <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
-            ))}
-          </>
-        )}
+        {noDeadlineTodos.length > 0 && (() => {
+          const collapsed = collapsedSections.has('no-deadline');
+          return (
+            <>
+              <TouchableOpacity onPress={() => toggleSection('no-deadline')} style={s.sectionHeader}>
+                {collapsed ? <ChevronRight size={14} color={Colors.muted} /> : <ChevronDown size={14} color={Colors.muted} />}
+                <Text style={[s.groupLabel, { marginTop: 0, marginBottom: 0 }]}>No deadline ({noDeadlineTodos.length})</Text>
+              </TouchableOpacity>
+              {!collapsed && (filter === 'All' ? buildGroups(noDeadlineTodos) : noDeadlineTodos.map((t) => ({ key: t.id, primary: t, members: [t] }))).map(({ key, primary, members }) => (
+                <React.Fragment key={key}>{renderTodoItem(primary, members)}</React.Fragment>
+              ))}
+            </>
+          );
+        })()}
 
         {/* Completed */}
-        {doneTodos.length > 0 && (
-          <>
-            <Text style={s.groupLabel}>Completed ({doneTodos.length})</Text>
-            {doneTodos.map((todo) => (
-              <View key={todo.id} style={[s.todoCard, { opacity: 0.4 }]}>
-                <View style={s.todoTopRow}>
-                  <TouchableOpacity style={s.checkboxDone} onPress={() => handleToggle(todo.id)}>
-                    <Check size={12} color={Colors.background} />
-                  </TouchableOpacity>
-                  <View style={s.todoText}>
-                    <Text style={[s.todoTitle, s.todoTitleDone]} numberOfLines={1}>{todo.title}</Text>
-                    <Text style={s.todoAssignee}>{getMember(todo.assigned_to)?.display_name.split(' ')[0] || 'Unknown'}</Text>
+        {doneTodos.length > 0 && (() => {
+          const collapsed = collapsedSections.has('completed');
+          return (
+            <>
+              <TouchableOpacity onPress={() => toggleSection('completed')} style={s.sectionHeader}>
+                {collapsed ? <ChevronRight size={14} color={Colors.muted} /> : <ChevronDown size={14} color={Colors.muted} />}
+                <Text style={[s.groupLabel, { marginTop: 0, marginBottom: 0 }]}>Completed ({doneTodos.length})</Text>
+              </TouchableOpacity>
+              {!collapsed && doneTodos.map((todo) => (
+                <View key={todo.id} style={[s.todoCard, { opacity: 0.4 }]}>
+                  <View style={s.todoTopRow}>
+                    <TouchableOpacity style={s.checkboxDone} onPress={() => handleToggle(todo.id)}>
+                      <Check size={12} color={Colors.background} />
+                    </TouchableOpacity>
+                    <View style={s.todoText}>
+                      <Text style={[s.todoTitle, s.todoTitleDone]} numberOfLines={1}>{todo.title}</Text>
+                      <Text style={s.todoAssignee}>{getMember(todo.assigned_to)?.display_name.split(' ')[0] || 'Unknown'}</Text>
+                    </View>
+                    <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
+                      <Trash2 size={14} color={Colors.destructive} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity style={s.deleteBtn} onPress={() => confirm('Delete', `Delete "${todo.title}"?`, () => deleteTodo(todo.id), true)}>
-                    <Trash2 size={14} color={Colors.destructive} />
-                  </TouchableOpacity>
                 </View>
-              </View>
-            ))}
-          </>
-        )}
+              ))}
+            </>
+          );
+        })()}
 
         {activeTodos.length === 0 && doneTodos.length === 0 && (
           <View style={s.emptyState}>
@@ -817,6 +848,7 @@ const s = StyleSheet.create({
   editForm: { backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.primaryBorder, gap: 10, marginBottom: 6 },
   deleteBtn: { padding: 8, borderRadius: 10, backgroundColor: Colors.destructiveBg },
   groupLabel: { fontSize: 12, fontWeight: '700', color: Colors.muted, marginTop: 12, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginBottom: 6, paddingVertical: 4 },
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyText: { fontSize: 14, color: Colors.muted },
 });

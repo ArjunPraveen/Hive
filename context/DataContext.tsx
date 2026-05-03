@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Todo, CalendarEvent, TodoStatus } from '@/lib/database.types';
+import { Todo, CalendarEvent, TodoStatus, Habit, HabitAssignee, HabitCheckin } from '@/lib/database.types';
 import { useAuth } from './AuthContext';
 
 interface DataContextType {
   todos: Todo[];
   events: CalendarEvent[];
+  habits: Habit[];
+  habitAssignees: HabitAssignee[];
+  habitCheckins: HabitCheckin[];
   leaderboard: LeaderboardEntry[];
   isLoadingTodos: boolean;
   isLoadingEvents: boolean;
@@ -16,6 +19,10 @@ interface DataContextType {
   addEvent: (event: Omit<CalendarEvent, 'id' | 'family_id' | 'created_at'>) => Promise<string | null>;
   updateEvent: (id: string, updates: Partial<CalendarEvent>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
+  addHabit: (habit: Omit<Habit, 'id' | 'family_id' | 'created_at'>, assigneeIds: string[]) => Promise<string | null>;
+  updateHabit: (id: string, updates: Partial<Habit>, assigneeIds?: string[]) => Promise<void>;
+  deleteHabit: (id: string) => Promise<void>;
+  toggleHabitCheckin: (habitId: string, date?: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -35,6 +42,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const { user, family, familyMembers, session } = useAuth();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitAssignees, setHabitAssignees] = useState<HabitAssignee[]>([]);
+  const [habitCheckins, setHabitCheckins] = useState<HabitCheckin[]>([]);
   const [isLoadingTodos, setIsLoadingTodos] = useState(false);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
 
@@ -42,11 +52,38 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (session && family?.id) {
       fetchTodos(family.id);
       fetchEvents(family.id);
+      fetchHabits(family.id);
     } else {
       setTodos([]);
       setEvents([]);
+      setHabits([]);
+      setHabitAssignees([]);
+      setHabitCheckins([]);
     }
   }, [session, family?.id]);
+
+  async function fetchHabits(familyId: string) {
+    const { data: habitsData } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('family_id', familyId)
+      .order('created_at', { ascending: false });
+    if (habitsData) {
+      setHabits(habitsData as Habit[]);
+      const habitIds = habitsData.map((h: any) => h.id);
+      if (habitIds.length > 0) {
+        const [{ data: assigneesData }, { data: checkinsData }] = await Promise.all([
+          supabase.from('habit_assignees').select('*').in('habit_id', habitIds),
+          supabase.from('habit_checkins').select('*').in('habit_id', habitIds),
+        ]);
+        if (assigneesData) setHabitAssignees(assigneesData as HabitAssignee[]);
+        if (checkinsData) setHabitCheckins(checkinsData as HabitCheckin[]);
+      } else {
+        setHabitAssignees([]);
+        setHabitCheckins([]);
+      }
+    }
+  }
 
   async function fetchTodos(familyId: string) {
     setIsLoadingTodos(true);
@@ -72,7 +109,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (family?.id) {
-      await Promise.all([fetchTodos(family.id), fetchEvents(family.id)]);
+      await Promise.all([fetchTodos(family.id), fetchEvents(family.id), fetchHabits(family.id)]);
     }
   }, [family?.id]);
 
@@ -210,6 +247,109 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // ----- Habits CRUD -----
+
+  const addHabit = useCallback(
+    async (habit: Omit<Habit, 'id' | 'family_id' | 'created_at'>, assigneeIds: string[]): Promise<string | null> => {
+      if (!family) return 'No family set';
+      const { data, error } = await supabase
+        .from('habits')
+        .insert({
+          family_id: family.id,
+          title: habit.title,
+          category: habit.category,
+          frequency_type: habit.frequency_type,
+          frequency_count: habit.frequency_count,
+          custom_days: habit.custom_days,
+          created_by: habit.created_by,
+        })
+        .select()
+        .single();
+      if (error || !data) return error?.message || 'Failed to create habit';
+
+      // Insert assignees
+      if (assigneeIds.length > 0) {
+        const { error: aErr } = await supabase
+          .from('habit_assignees')
+          .insert(assigneeIds.map((uid) => ({ habit_id: data.id, user_id: uid })));
+        if (aErr) return aErr.message;
+      }
+
+      setHabits((prev) => [data as Habit, ...prev]);
+      setHabitAssignees((prev) => [...prev, ...assigneeIds.map((uid) => ({ habit_id: data.id, user_id: uid }))]);
+      return null;
+    },
+    [family?.id]
+  );
+
+  const updateHabit = useCallback(async (id: string, updates: Partial<Habit>, assigneeIds?: string[]) => {
+    const { data, error } = await supabase
+      .from('habits')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    if (data && !error) {
+      setHabits((prev) => prev.map((h) => (h.id === id ? (data as Habit) : h)));
+    }
+
+    // If assignees provided, replace them
+    if (assigneeIds) {
+      await supabase.from('habit_assignees').delete().eq('habit_id', id);
+      if (assigneeIds.length > 0) {
+        await supabase
+          .from('habit_assignees')
+          .insert(assigneeIds.map((uid) => ({ habit_id: id, user_id: uid })));
+      }
+      setHabitAssignees((prev) => [
+        ...prev.filter((a) => a.habit_id !== id),
+        ...assigneeIds.map((uid) => ({ habit_id: id, user_id: uid })),
+      ]);
+    }
+  }, []);
+
+  const deleteHabit = useCallback(async (id: string) => {
+    const prevHabits = habits;
+    const prevAssignees = habitAssignees;
+    const prevCheckins = habitCheckins;
+
+    setHabits((p) => p.filter((h) => h.id !== id));
+    setHabitAssignees((p) => p.filter((a) => a.habit_id !== id));
+    setHabitCheckins((p) => p.filter((c) => c.habit_id !== id));
+
+    const { error } = await supabase.from('habits').delete().eq('id', id);
+    if (error) {
+      setHabits(prevHabits);
+      setHabitAssignees(prevAssignees);
+      setHabitCheckins(prevCheckins);
+    }
+  }, [habits, habitAssignees, habitCheckins]);
+
+  const toggleHabitCheckin = useCallback(async (habitId: string, date?: string) => {
+    if (!user) return;
+    const today = date || new Date().toISOString().split('T')[0];
+    const existing = habitCheckins.find(
+      (c) => c.habit_id === habitId && c.user_id === user.id && c.checked_date === today
+    );
+
+    if (existing) {
+      // Uncheck
+      setHabitCheckins((prev) => prev.filter((c) => c.id !== existing.id));
+      const { error } = await supabase.from('habit_checkins').delete().eq('id', existing.id);
+      if (error) setHabitCheckins((prev) => [...prev, existing]);
+    } else {
+      // Check in
+      const { data, error } = await supabase
+        .from('habit_checkins')
+        .insert({ habit_id: habitId, user_id: user.id, checked_date: today })
+        .select()
+        .single();
+      if (data && !error) {
+        setHabitCheckins((prev) => [...prev, data as HabitCheckin]);
+      }
+    }
+  }, [user?.id, habitCheckins]);
+
   // Compute leaderboard as useMemo, not a function call
   const leaderboard = useMemo((): LeaderboardEntry[] => {
     return familyMembers.map((member) => {
@@ -234,6 +374,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
+      // Habit check-in points: +5 per check-in
+      const memberCheckins = habitCheckins.filter((c) => c.user_id === member.id).length;
+      score += memberCheckins * 5;
+
       return {
         userId: member.id,
         name: member.display_name,
@@ -244,13 +388,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         avgCompletionHours: avgHours,
       };
     }).sort((a, b) => b.score - a.score);
-  }, [todos, familyMembers]);
+  }, [todos, familyMembers, habitCheckins]);
 
   return (
     <DataContext.Provider
       value={{
         todos,
         events,
+        habits,
+        habitAssignees,
+        habitCheckins,
         leaderboard,
         isLoadingTodos,
         isLoadingEvents,
@@ -261,6 +408,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         addEvent,
         updateEvent,
         deleteEvent,
+        addHabit,
+        updateHabit,
+        deleteHabit,
+        toggleHabitCheckin,
         refresh,
       }}>
       {children}

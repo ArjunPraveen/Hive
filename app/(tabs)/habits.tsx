@@ -10,8 +10,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { confirm, showAlert } from '@/lib/alert';
 import { Habit, FrequencyType } from '@/lib/database.types';
+import { todayKey, startOfWeek, isScheduledToday, frequencyLabel, DAY_LABELS } from '@/lib/habitSchedule';
 
-const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const CATEGORIES = [
   { value: 'health', label: 'Health', emoji: '💪', color: '#2ecc71' },
   { value: 'learning', label: 'Learning', emoji: '📚', color: '#3498db' },
@@ -25,20 +25,6 @@ function getMemberEmoji(m: any) {
   if (m?.role_label === 'Son') return '🧑';
   if (m?.role_label === 'Daughter') return '👧';
   return '😊';
-}
-
-function todayKey() {
-  return new Date().toISOString().split('T')[0];
-}
-
-function startOfWeek(d: Date) {
-  // Monday-start week
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
 }
 
 // Calculate streak based on frequency
@@ -105,36 +91,6 @@ function calcStreak(habit: Habit, userCheckins: string[]): number {
   return 0;
 }
 
-function isScheduledToday(habit: Habit, userCheckins: string[]): boolean {
-  const today = todayKey();
-  if (habit.frequency_type === 'daily') {
-    return !userCheckins.includes(today);
-  }
-  if (habit.frequency_type === 'weekly') {
-    const weekStart = startOfWeek(new Date());
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 7);
-    const inWeek = userCheckins.filter((d) => {
-      const dd = new Date(d + 'T00:00:00');
-      return dd >= weekStart && dd < weekEnd;
-    }).length;
-    return inWeek < habit.frequency_count;
-  }
-  if (habit.frequency_type === 'custom' && habit.custom_days) {
-    const dow = new Date().getDay();
-    return habit.custom_days.includes(dow) && !userCheckins.includes(today);
-  }
-  return false;
-}
-
-function frequencyLabel(habit: Habit): string {
-  if (habit.frequency_type === 'daily') return 'Daily';
-  if (habit.frequency_type === 'weekly') return `${habit.frequency_count}x/week`;
-  if (habit.frequency_type === 'custom' && habit.custom_days) {
-    return habit.custom_days.map((d) => DAY_LABELS[d]).join('·');
-  }
-  return '';
-}
 
 export default function HabitsScreen() {
   const { user, familyMembers } = useAuth();

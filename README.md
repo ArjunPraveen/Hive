@@ -19,6 +19,7 @@ A family productivity app where everyone stays in sync — shared todos, leaderb
 | 9 | 2026-04-15 | HiveLoader (hex spinner with bee), parabolic bee flight path, accurate bee positioning via measureInWindow |
 | 10 | 2026-04-16 | Multi-assign todos — tap multiple assignees, each gets an independent copy. In "All" view, shared todos group into one card with stacked avatars and per-member completion status. Group edit updates all copies. |
 | 11 | 2026-05-03 | Habits feature — new 5th tab (between Todos and Events). Daily/weekly/custom-day frequencies, multi-assign support, streak tracking, weekly progress, leaderboard +5 pts per check-in. Collapsible todo sections. |
+| 12 | 2026-05-04 | Daily email digest worker — Supabase Edge Function + pg_cron at 10 AM IST. Sends Habits/Overdue/Today/Next 3 days via Gmail SMTP. Email digest opt-out toggle in Family settings. |
 
 ## Tech Stack
 

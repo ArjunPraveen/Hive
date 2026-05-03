@@ -31,6 +31,7 @@ export interface Database {
           avatar_url: string | null;
           role_label: string | null;
           phone: string | null;
+          email_digest_enabled: boolean;
           created_at: string;
         };
         Insert: {
@@ -40,6 +41,7 @@ export interface Database {
           avatar_url?: string | null;
           role_label?: string | null;
           phone?: string | null;
+          email_digest_enabled?: boolean;
           created_at?: string;
         };
         Update: {
@@ -49,6 +51,7 @@ export interface Database {
           avatar_url?: string | null;
           role_label?: string | null;
           phone?: string | null;
+          email_digest_enabled?: boolean;
           created_at?: string;
         };
       };

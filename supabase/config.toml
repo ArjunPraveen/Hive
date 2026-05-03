@@ -1,0 +1,4 @@
+project_id = "zzenrrorooejujwtvscg"
+
+[functions.send-daily-digest]
+verify_jwt = false

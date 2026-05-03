@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { ArrowLeft, Copy, CheckSquare, Flame, Crown, Users, LogOut } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Switch } from 'react-native';
+import { ArrowLeft, Copy, CheckSquare, Flame, Crown, Users, LogOut, Mail } from 'lucide-react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 
@@ -8,10 +8,31 @@ import Colors, { TOP_PADDING } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { showAlert, confirm } from '@/lib/alert';
+import { supabase } from '@/lib/supabase';
 
 export default function FamilyScreen() {
-  const { user, family, familyMembers, signOut } = useAuth();
+  const { user, family, familyMembers, signOut, refreshProfile } = useAuth();
   const { leaderboard, todos } = useData();
+  const [digestEnabled, setDigestEnabled] = useState<boolean>(user?.email_digest_enabled ?? true);
+
+  useEffect(() => {
+    setDigestEnabled(user?.email_digest_enabled ?? true);
+  }, [user?.email_digest_enabled]);
+
+  const toggleDigest = async (val: boolean) => {
+    setDigestEnabled(val); // optimistic
+    if (!user) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ email_digest_enabled: val })
+      .eq('id', user.id);
+    if (error) {
+      setDigestEnabled(!val); // revert
+      showAlert('Error', error.message);
+    } else {
+      refreshProfile();
+    }
+  };
 
   const totalCompleted = todos.filter((t) => t.status === 'done').length;
   const bestStreak = leaderboard.length > 0 ? leaderboard[0].todosCompleted : 0;
@@ -156,6 +177,26 @@ export default function FamilyScreen() {
         </View>
       </View>
 
+      {/* Settings */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Settings</Text>
+        <View style={s.settingRow}>
+          <View style={s.settingIconBox}>
+            <Mail size={16} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.settingLabel}>Daily email digest</Text>
+            <Text style={s.settingDesc}>Get a summary at 7 AM each day</Text>
+          </View>
+          <Switch
+            value={digestEnabled}
+            onValueChange={toggleDigest}
+            trackColor={{ false: Colors.surfaceLight, true: Colors.primary }}
+            thumbColor={Colors.foreground}
+          />
+        </View>
+      </View>
+
       {/* Sign out */}
       <TouchableOpacity
         style={s.signOutBtn}
@@ -207,6 +248,10 @@ const s = StyleSheet.create({
   summaryCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: Colors.border },
   summaryNum: { fontSize: 22, fontWeight: '700', color: Colors.foreground, marginTop: 4 },
   summaryLabel: { fontSize: 10, color: Colors.muted },
+  settingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: Colors.border },
+  settingIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: Colors.primaryBg, alignItems: 'center', justifyContent: 'center' },
+  settingLabel: { fontSize: 14, fontWeight: '600', color: Colors.foreground },
+  settingDesc: { fontSize: 11, color: Colors.muted, marginTop: 1 },
   signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 24, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: Colors.destructive },
   signOutText: { fontSize: 14, fontWeight: '600', color: Colors.destructive },
 });

@@ -1,13 +1,11 @@
 -- Daily Digest Email Worker — schema + cron schedule
--- Run in Supabase SQL Editor.
--- IMPORTANT: Replace <PROJECT_REF> and <ANON_KEY> with values from
--- Supabase Dashboard → Project Settings → API.
+-- Idempotent: safe to re-run.
 
 -- 1. Opt-out toggle on profiles (default ON)
 ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS email_digest_enabled boolean NOT NULL DEFAULT true;
 
--- 2. Enable extensions (idempotent)
+-- 2. Enable extensions
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
@@ -18,18 +16,16 @@ SELECT cron.unschedule('hive-daily-digest') WHERE EXISTS (
 
 SELECT cron.schedule(
   'hive-daily-digest',
-  '30 4 * * *',  -- 04:30 UTC = 10:00 IST
+  '30 6 * * *',  -- 06:30 UTC = 12:00 PM IST
   $$
   SELECT net.http_post(
-    url := 'https://<PROJECT_REF>.supabase.co/functions/v1/send-daily-digest',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer <ANON_KEY>'
-    ),
+    url := 'https://zzenrrorooejujwtvscg.supabase.co/functions/v1/send-daily-digest',
+    headers := '{"Content-Type":"application/json"}'::jsonb,
     body := '{}'::jsonb
   ) AS request_id;
   $$
 );
 
--- Verify with: SELECT * FROM cron.job WHERE jobname = 'hive-daily-digest';
--- Unschedule with: SELECT cron.unschedule('hive-daily-digest');
+-- Verify with: SELECT jobname, schedule, command FROM cron.job WHERE jobname = 'hive-daily-digest';
+-- View runs: SELECT * FROM cron.job_run_details WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'hive-daily-digest') ORDER BY start_time DESC LIMIT 5;
+-- Unschedule: SELECT cron.unschedule('hive-daily-digest');

@@ -21,7 +21,11 @@ type Habit = {
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function todayKey(now: Date = new Date()): string {
-  return now.toISOString().split('T')[0];
+  // Use local date components — avoids UTC/IST date mismatches
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function startOfWeek(d: Date): Date {
